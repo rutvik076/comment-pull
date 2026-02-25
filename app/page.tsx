@@ -11,11 +11,14 @@ const supabase = createClient(
 )
 
 interface Comment {
+  id?: string
   author: string
   text: string
   likes: number
   publishedAt: string
   replyCount: number
+  isReply?: boolean
+  parentId?: string
 }
 
 function parseVideoId(url: string): string | null {
@@ -32,8 +35,9 @@ function parseVideoId(url: string): string | null {
 }
 
 function downloadCSV(comments: Comment[], videoId: string) {
-  const headers = ['Author', 'Comment', 'Likes', 'Published At', 'Replies']
+  const headers = ['Type', 'Author', 'Comment', 'Likes', 'Published At', 'Replies']
   const rows = comments.map(c => [
+    c.isReply ? 'Reply' : 'Comment',
     `"${c.author.replace(/"/g, '""')}"`,
     `"${c.text.replace(/"/g, '""')}"`,
     c.likes,
@@ -223,6 +227,8 @@ export default function Home() {
   const [showPayment, setShowPayment] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [isPremium, setIsPremium] = useState(false)
+  const [includeReplies, setIncludeReplies] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -267,16 +273,23 @@ export default function Home() {
   }
 
   const handleFetch = async () => {
-    setError(''); setComments([]); setFetched(false)
+    setError(''); setComments([]); setFetched(false); setHasMore(false)
     const vid = parseVideoId(url)
     if (!vid) { setError('Invalid YouTube URL. Please paste a valid link.'); return }
     setVideoId(vid); setLoading(true)
     try {
-      const res = await fetch(`/api/comments?videoId=${vid}`)
+      const params = new URLSearchParams({
+        videoId: vid,
+        includeReplies: includeReplies.toString(),
+        isPremium: isPremium.toString(),
+      })
+      const res = await fetch(`/api/comments?${params}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to fetch comments')
-      setComments(data.comments); setFetched(true)
-      // Save to history via server API using userId
+      setComments(data.comments)
+      setFetched(true)
+      setHasMore(data.hasMore || false)
+      // Save to download history via server (no ISP block)
       if (user?.id) {
         try {
           await fetch('/api/save-download', {
@@ -369,6 +382,27 @@ export default function Home() {
                   {loading ? 'Fetching...' : 'Fetch Comments'}
                 </button>
               </div>
+              {/* Reply checkbox */}
+              <div className="mt-3 flex items-center justify-between">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <div className="relative">
+                    <input type="checkbox" checked={includeReplies} onChange={e => setIncludeReplies(e.target.checked)}
+                      className="sr-only" />
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                      includeReplies ? 'bg-red-600 border-red-600' : 'bg-transparent border-white/20 group-hover:border-white/40'
+                    }`}>
+                      {includeReplies && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </div>
+                  </div>
+                  <span className="text-sm text-white/60 group-hover:text-white/80 transition-colors">
+                    Include replies to comments
+                  </span>
+                </label>
+                <span className="text-xs text-white/30">
+                  {isPremium ? '✨ Premium: up to 10,000 comments' : 'Free: top 100 comments · '}
+                  {!isPremium && <button onClick={() => setShowPayment(true)} className="text-amber-400 hover:text-amber-300 transition-colors">Unlock more →</button>}
+                </span>
+              </div>
               {error && (
                 <div className="mt-4 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
                   <AlertCircle size={14} />{error}
@@ -396,8 +430,13 @@ export default function Home() {
             <div className="max-w-5xl mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold">{comments.length} Comments Found</h2>
-                  <p className="text-white/40 text-sm">Video ID: {videoId}</p>
+                  <h2 className="text-xl font-bold">
+                    {comments.length} {includeReplies ? 'Comments & Replies' : 'Comments'} Found
+                  </h2>
+                  <p className="text-white/40 text-sm">
+                    Video ID: {videoId}
+                    {!isPremium && <span className="ml-2 text-amber-400/70">· Free tier (top 100)</span>}
+                  </p>
                 </div>
                 <button onClick={() => downloadCSV(comments, videoId)}
                   className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-semibold transition-colors text-sm">
@@ -414,8 +453,11 @@ export default function Home() {
                 </div>
                 <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto">
                   {comments.map((c, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-4 px-5 py-4 hover:bg-white/3 transition-colors text-sm">
-                      <div className="col-span-3 font-medium text-white/80 truncate">{c.author}</div>
+                    <div key={i} className={`grid grid-cols-12 gap-4 px-5 py-4 hover:bg-white/3 transition-colors text-sm ${c.isReply ? 'bg-white/[0.02] border-l-2 border-white/10 ml-0 pl-8' : ''}`}>
+                      <div className="col-span-3 font-medium text-white/80 truncate">
+                        {c.isReply && <span className="text-white/30 text-xs mr-1">↳</span>}
+                        {c.author}
+                      </div>
                       <div className="col-span-6 text-white/60 line-clamp-2 leading-relaxed">{c.text}</div>
                       <div className="col-span-1 text-center text-white/40">{c.likes.toLocaleString()}</div>
                       <div className="col-span-2 text-right text-white/30 text-xs">
@@ -426,16 +468,24 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl px-5 py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-amber-400">Want more than 100 comments?</p>
-                  <p className="text-white/50 text-sm">Upgrade to Premium — fetch up to 10,000 comments per video</p>
+              {/* Premium upsell — only show if there are more comments */}
+              {hasMore && !isPremium && (
+                <div className="mt-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl px-5 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-amber-400">🔒 Showing top 100 of thousands of comments</p>
+                    <p className="text-white/50 text-sm">Upgrade to Premium — fetch up to 10,000 comments per video</p>
+                  </div>
+                  <button onClick={() => setShowPayment(true)}
+                    className="flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap ml-4">
+                    Go Premium <ChevronRight size={14} />
+                  </button>
                 </div>
-                <button onClick={() => setShowPayment(true)}
-                  className="flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-                  Go Premium <ChevronRight size={14} />
-                </button>
-              </div>
+              )}
+              {!hasMore && !isPremium && (
+                <div className="mt-3 text-center text-white/25 text-xs">
+                  Fetched all available comments · <button onClick={() => setShowPayment(true)} className="text-amber-400/60 hover:text-amber-400 transition-colors">Upgrade for 10,000 comments/video</button>
+                </div>
+              )}
             </div>
           </section>
         )}
