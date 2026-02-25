@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Download, Youtube, Zap, Shield, TrendingUp, ChevronRight, Loader2, AlertCircle, X, Crown, LayoutDashboard, History } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface Comment {
   author: string
@@ -229,24 +233,37 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user)
-      if (data.user) checkPremium(data.user.id)
-    })
-    supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) checkPremium(session.user.id)
-      else setIsPremium(false)
-    })
+    // Read user from localStorage (set during login)
+    try {
+      const userStr = localStorage.getItem('sb_user')
+      const sessionStr = localStorage.getItem('sb_session')
+      if (userStr && sessionStr) {
+        const u = JSON.parse(userStr)
+        setUser(u)
+        // Check premium via server API
+        if (u?.id) checkPremium(u.id)
+      }
+    } catch (e) {
+      console.error('Auth read error:', e)
+    }
   }, [])
 
   async function checkPremium(userId: string) {
-    const { data } = await supabase
-      .from('premium_users')
-      .select('is_active')
-      .eq('user_id', userId)
-      .single()
-    setIsPremium(data?.is_active || false)
+    try {
+      const sessionStr = localStorage.getItem('sb_session')
+      if (!sessionStr) return
+      const session = JSON.parse(sessionStr)
+      if (session?.access_token?.startsWith('local_')) return
+      const res = await fetch('/api/dashboard', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setIsPremium(data.isPremium || false)
+      }
+    } catch (e) {
+      console.error('Premium check error:', e)
+    }
   }
 
   const handleFetch = async () => {
@@ -259,14 +276,27 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to fetch comments')
       setComments(data.comments); setFetched(true)
-      // Save to history only if logged in
+      // Save to history via server API (bypasses ISP block)
       if (user) {
-        await supabase.from('downloads').insert({
-          user_id: user.id,
-          video_id: vid,
-          comment_count: data.comments.length,
-          created_at: new Date().toISOString(),
-        })
+        try {
+          const sessionStr = localStorage.getItem('sb_session')
+          const session = sessionStr ? JSON.parse(sessionStr) : null
+          if (session?.access_token && !session.access_token.startsWith('local_')) {
+            await fetch('/api/save-download', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({
+                videoId: vid,
+                commentCount: data.comments.length,
+              })
+            })
+          }
+        } catch (e) {
+          console.error('Save download error:', e)
+        }
       }
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }

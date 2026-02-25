@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Youtube, Download, Crown, LogOut, Clock, FileText, TrendingUp, LayoutDashboard } from 'lucide-react'
+import { Youtube, Download, Crown, LogOut, Clock, FileText, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -32,7 +32,6 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      // Get user from localStorage (set during login)
       const userStr = localStorage.getItem('sb_user')
       const sessionStr = localStorage.getItem('sb_session')
 
@@ -43,33 +42,37 @@ export default function Dashboard() {
 
       const user = JSON.parse(userStr)
       const session = JSON.parse(sessionStr)
-
-      // Fetch dashboard data via server API
-      // Handle both real sessions and local fallback sessions
       const isLocalSession = session.access_token?.startsWith('local_')
-      let data = { downloads: [], isPremium: false }
 
-      if (!isLocalSession) {
-        const res = await fetch('/api/dashboard', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        })
-        if (res.ok) {
-          data = await res.json()
+      let downloads: DownloadRecord[] = []
+      let isPremium = false
+
+      // Only fetch from server if we have a real token
+      if (!isLocalSession && session.access_token) {
+        try {
+          const res = await fetch('/api/dashboard', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          })
+          if (res.ok) {
+            const data = await res.json()
+            downloads = data.downloads || []
+            isPremium = data.isPremium || false
+          }
+        } catch (e) {
+          console.error('Dashboard fetch error:', e)
         }
-        // Don't redirect on failure — show empty dashboard instead
       }
+
       const today = new Date().toISOString().split('T')[0]
-      const todayDownloads = (data.downloads || []).filter((d: DownloadRecord) =>
-        d.created_at.startsWith(today)
-      ).length
+      const todayDownloads = downloads.filter(d => d.created_at?.startsWith(today)).length
 
       setProfile({
         email: user.email || '',
-        isPremium: data.isPremium || false,
+        isPremium,
         downloadsToday: todayDownloads,
-        totalDownloads: data.downloads?.length || 0,
+        totalDownloads: downloads.length,
       })
-      setDownloads(data.downloads || [])
+      setDownloads(downloads)
     } catch (error) {
       console.error('Dashboard error:', error)
       router.push('/login')
@@ -101,6 +104,7 @@ export default function Dashboard() {
         <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full bg-red-600/8 blur-[100px]" />
       </div>
       <div className="relative z-10">
+        {/* Nav */}
         <nav className="border-b border-white/5 px-6 py-4">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
@@ -180,9 +184,9 @@ export default function Dashboard() {
                   <FileText className="text-white/20" size={24} />
                 </div>
                 <p className="text-white/40 font-medium mb-2">No downloads yet</p>
-                <p className="text-white/25 text-sm mb-6">Start by pasting a YouTube URL on the homepage</p>
+                <p className="text-white/25 text-sm mb-6">Go to homepage, paste a YouTube URL and fetch comments — it'll appear here automatically</p>
                 <Link href="/" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                  <Youtube size={14} />Go to Homepage
+                  <Youtube size={14} />Start Downloading
                 </Link>
               </div>
             ) : (
