@@ -47,20 +47,16 @@ export default function Dashboard() {
       let downloads: DownloadRecord[] = []
       let isPremium = false
 
-      // Only fetch from server if we have a real token
-      if (!isLocalSession && session.access_token) {
-        try {
-          const res = await fetch('/api/dashboard', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          })
-          if (res.ok) {
-            const data = await res.json()
-            downloads = data.downloads || []
-            isPremium = data.isPremium || false
-          }
-        } catch (e) {
-          console.error('Dashboard fetch error:', e)
+      // Fetch using userId — works with any session type
+      try {
+        const res = await fetch(`/api/dashboard?userId=${user.id}`)
+        if (res.ok) {
+          const data = await res.json()
+          downloads = data.downloads || []
+          isPremium = data.isPremium || false
         }
+      } catch (e) {
+        console.error('Dashboard fetch error:', e)
       }
 
       const today = new Date().toISOString().split('T')[0]

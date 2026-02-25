@@ -276,24 +276,18 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to fetch comments')
       setComments(data.comments); setFetched(true)
-      // Save to history via server API (bypasses ISP block)
-      if (user) {
+      // Save to history via server API using userId
+      if (user?.id) {
         try {
-          const sessionStr = localStorage.getItem('sb_session')
-          const session = sessionStr ? JSON.parse(sessionStr) : null
-          if (session?.access_token && !session.access_token.startsWith('local_')) {
-            await fetch('/api/save-download', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              },
-              body: JSON.stringify({
-                videoId: vid,
-                commentCount: data.comments.length,
-              })
+          await fetch('/api/save-download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.id,
+              videoId: vid,
+              commentCount: data.comments.length,
             })
-          }
+          })
         } catch (e) {
           console.error('Save download error:', e)
         }
