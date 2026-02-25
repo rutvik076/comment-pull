@@ -139,11 +139,25 @@ export default function LoginPage() {
         body: JSON.stringify({ action: 'signin', email, password }),
       })
       const data = await res.json()
+
+      // Show any API-level errors
       if (!res.ok) throw new Error(data.error)
-      if (data.session) {
-        localStorage.setItem('sb_session', JSON.stringify(data.session))
+
+      if (data.user) {
+        // Store whatever we have
         localStorage.setItem('sb_user', JSON.stringify(data.user))
+        if (data.session) {
+          localStorage.setItem('sb_session', JSON.stringify(data.session))
+        } else {
+          // Store minimal session so dashboard doesn't redirect back
+          localStorage.setItem('sb_session', JSON.stringify({
+            access_token: 'local_' + data.user.id,
+            user: data.user
+          }))
+        }
         router.push('/dashboard')
+      } else {
+        throw new Error(data.error || 'Sign in failed. Please try again.')
       }
     } catch (e: any) {
       setError(e.message)

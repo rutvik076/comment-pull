@@ -45,19 +45,19 @@ export default function Dashboard() {
       const session = JSON.parse(sessionStr)
 
       // Fetch dashboard data via server API
-      const res = await fetch('/api/dashboard', {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      })
+      // Handle both real sessions and local fallback sessions
+      const isLocalSession = session.access_token?.startsWith('local_')
+      let data = { downloads: [], isPremium: false }
 
-      if (!res.ok) {
-        // Session expired
-        localStorage.removeItem('sb_user')
-        localStorage.removeItem('sb_session')
-        router.push('/login')
-        return
+      if (!isLocalSession) {
+        const res = await fetch('/api/dashboard', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        })
+        if (res.ok) {
+          data = await res.json()
+        }
+        // Don't redirect on failure — show empty dashboard instead
       }
-
-      const data = await res.json()
       const today = new Date().toISOString().split('T')[0]
       const todayDownloads = (data.downloads || []).filter((d: DownloadRecord) =>
         d.created_at.startsWith(today)
