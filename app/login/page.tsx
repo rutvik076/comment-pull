@@ -65,7 +65,7 @@ export default function LoginPage() {
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpString }),
+        body: JSON.stringify({ email, otp: otpString, action: 'verify' }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -90,7 +90,7 @@ export default function LoginPage() {
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpString, password, name }),
+        body: JSON.stringify({ email, otp: otpString, password, name, action: 'create' }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
