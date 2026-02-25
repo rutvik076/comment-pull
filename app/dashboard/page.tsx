@@ -1,13 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Youtube, Download, Crown, LogOut, Clock, FileText, Zap, TrendingUp, User } from 'lucide-react'
+import { Youtube, Download, Crown, LogOut, Clock, FileText, TrendingUp, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-
-interface Download {
+interface DownloadRecord {
   id: string
   video_id: string
   video_title: string
@@ -25,7 +23,7 @@ interface UserProfile {
 export default function Dashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [downloads, setDownloads] = useState<Download[]>([])
+  const [downloads, setDownloads] = useState<DownloadRecord[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,47 +32,55 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      // Check auth
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      // Get user from localStorage (set during login)
+      const userStr = localStorage.getItem('sb_user')
+      const sessionStr = localStorage.getItem('sb_session')
 
-      // Check premium status
-      const { data: premiumData } = await supabase
-        .from('premium_users')
-        .select('is_active, expires_at')
-        .eq('user_id', user.id)
-        .single()
+      if (!userStr || !sessionStr) {
+        router.push('/login')
+        return
+      }
 
-      // Get download history
-      const { data: downloadData } = await supabase
-        .from('downloads')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
+      const user = JSON.parse(userStr)
+      const session = JSON.parse(sessionStr)
 
-      // Count today's downloads
+      // Fetch dashboard data via server API
+      const res = await fetch('/api/dashboard', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      })
+
+      if (!res.ok) {
+        // Session expired
+        localStorage.removeItem('sb_user')
+        localStorage.removeItem('sb_session')
+        router.push('/login')
+        return
+      }
+
+      const data = await res.json()
       const today = new Date().toISOString().split('T')[0]
-      const todayDownloads = (downloadData || []).filter(d =>
+      const todayDownloads = (data.downloads || []).filter((d: DownloadRecord) =>
         d.created_at.startsWith(today)
       ).length
 
       setProfile({
         email: user.email || '',
-        isPremium: premiumData?.is_active || false,
+        isPremium: data.isPremium || false,
         downloadsToday: todayDownloads,
-        totalDownloads: downloadData?.length || 0,
+        totalDownloads: data.downloads?.length || 0,
       })
-      setDownloads(downloadData || [])
+      setDownloads(data.downloads || [])
     } catch (error) {
       console.error('Dashboard error:', error)
+      router.push('/login')
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
+  function handleSignOut() {
+    localStorage.removeItem('sb_user')
+    localStorage.removeItem('sb_session')
     router.push('/')
   }
 
@@ -94,15 +100,11 @@ export default function Dashboard() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full bg-red-600/8 blur-[100px]" />
       </div>
-
       <div className="relative z-10">
-        {/* Nav */}
         <nav className="border-b border-white/5 px-6 py-4">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                <Youtube size={16} />
-              </div>
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center"><Youtube size={16} /></div>
               <span className="font-bold text-lg tracking-tight">CommentPull</span>
             </Link>
             <div className="flex items-center gap-4">
@@ -116,7 +118,6 @@ export default function Dashboard() {
         </nav>
 
         <div className="max-w-5xl mx-auto px-6 py-10">
-          {/* Header */}
           <div className="flex items-center justify-between mb-10">
             <div>
               <h1 className="text-3xl font-black tracking-tight mb-1">Dashboard</h1>
@@ -134,33 +135,31 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Stats Cards */}
+          {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
             {[
-              { icon: <Download className="text-blue-400" size={18} />, label: 'Total Downloads', value: profile?.totalDownloads || 0, color: 'blue' },
-              { icon: <Clock className="text-yellow-400" size={18} />, label: 'Downloads Today', value: `${profile?.downloadsToday || 0}/${profile?.isPremium ? '∞' : '3'}`, color: 'yellow' },
-              { icon: <Crown className="text-amber-400" size={18} />, label: 'Plan', value: profile?.isPremium ? 'Premium' : 'Free', color: 'amber' },
-              { icon: <TrendingUp className="text-green-400" size={18} />, label: 'This Month', value: downloads.filter(d => new Date(d.created_at).getMonth() === new Date().getMonth()).length, color: 'green' },
+              { icon: <Download className="text-blue-400" size={18} />, label: 'Total Downloads', value: profile?.totalDownloads || 0 },
+              { icon: <Clock className="text-yellow-400" size={18} />, label: 'Downloads Today', value: `${profile?.downloadsToday || 0}/${profile?.isPremium ? '∞' : '3'}` },
+              { icon: <Crown className="text-amber-400" size={18} />, label: 'Plan', value: profile?.isPremium ? 'Premium' : 'Free' },
+              { icon: <TrendingUp className="text-green-400" size={18} />, label: 'This Month', value: downloads.filter(d => new Date(d.created_at).getMonth() === new Date().getMonth()).length },
             ].map((stat, i) => (
               <div key={i} className="bg-white/5 border border-white/8 rounded-2xl p-5">
-                <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center mb-3">
-                  {stat.icon}
-                </div>
+                <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center mb-3">{stat.icon}</div>
                 <div className="text-2xl font-black mb-1">{stat.value}</div>
                 <div className="text-white/40 text-sm">{stat.label}</div>
               </div>
             ))}
           </div>
 
-          {/* Free limit warning */}
-          {!profile?.isPremium && (profile?.downloadsToday || 0) >= 2 && (
+          {/* Upgrade nudge */}
+          {!profile?.isPremium && (
             <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl px-6 py-4 mb-8 flex items-center justify-between">
               <div>
-                <p className="font-semibold text-amber-400">Almost at your daily limit!</p>
-                <p className="text-white/50 text-sm">You've used {profile?.downloadsToday}/3 free downloads today. Upgrade for unlimited.</p>
+                <p className="font-semibold text-amber-400">Unlock unlimited downloads</p>
+                <p className="text-white/50 text-sm">Upgrade to Premium for 10,000 comments/video + download history forever</p>
               </div>
               <button onClick={() => router.push('/#pricing')}
-                className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">
+                className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap ml-4">
                 Upgrade — ₹299/mo
               </button>
             </div>
@@ -170,8 +169,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-black">Download History</h2>
-              <Link href="/"
-                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+              <Link href="/" className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
                 <Download size={14} />New Download
               </Link>
             </div>
@@ -183,16 +181,14 @@ export default function Dashboard() {
                 </div>
                 <p className="text-white/40 font-medium mb-2">No downloads yet</p>
                 <p className="text-white/25 text-sm mb-6">Start by pasting a YouTube URL on the homepage</p>
-                <Link href="/"
-                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                <Link href="/" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
                   <Youtube size={14} />Go to Homepage
                 </Link>
               </div>
             ) : (
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                {/* Table Header */}
                 <div className="grid grid-cols-12 gap-4 px-5 py-3 text-xs text-white/40 uppercase tracking-wider border-b border-white/5 font-medium">
-                  <div className="col-span-4">Video</div>
+                  <div className="col-span-4">Video ID</div>
                   <div className="col-span-3">Title</div>
                   <div className="col-span-2 text-center">Comments</div>
                   <div className="col-span-3 text-right">Date</div>
@@ -206,14 +202,10 @@ export default function Dashboard() {
                           <Youtube size={12} />{d.video_id}
                         </a>
                       </div>
-                      <div className="col-span-3 text-white/60 truncate text-xs">
-                        {d.video_title || '—'}
-                      </div>
-                      <div className="col-span-2 text-center text-white/60">
-                        {d.comment_count?.toLocaleString() || '—'}
-                      </div>
+                      <div className="col-span-3 text-white/60 truncate text-xs">{d.video_title || '—'}</div>
+                      <div className="col-span-2 text-center text-white/60">{d.comment_count?.toLocaleString() || '—'}</div>
                       <div className="col-span-3 text-right text-white/30 text-xs">
-                        {new Date(d.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(d.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
                       </div>
                     </div>
                   ))}
