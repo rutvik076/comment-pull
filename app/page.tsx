@@ -1,7 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Download, Youtube, Zap, Shield, TrendingUp, ChevronRight, Loader2, AlertCircle, X, Crown } from 'lucide-react'
+import { Download, Youtube, Zap, Shield, TrendingUp, ChevronRight, Loader2, AlertCircle, X, Crown, LayoutDashboard, History } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface Comment {
   author: string
@@ -43,15 +50,37 @@ function downloadCSV(comments: Comment[], videoId: string) {
   URL.revokeObjectURL(url)
 }
 
+// ─── Premium Payment Modal (requires account creation) ───────────────────────
 function PaymentModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<'account' | 'payment'>('account')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handlePayment = async () => {
-    if (!name.trim() || !email.trim()) { setError('Please fill in both name and email'); return }
+  const handleCreateAccount = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) { setError('Please fill in all fields'); return }
     if (!email.includes('@')) { setError('Please enter a valid email'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    setLoading(true); setError('')
+    try {
+      // Sign up or sign in
+      const { error: signUpError } = await supabase.auth.signUp({ email, password })
+      if (signUpError && !signUpError.message.includes('already registered')) throw signUpError
+      if (signUpError?.message.includes('already registered')) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInError) throw new Error('Account exists — wrong password. Try signing in first.')
+      }
+      setStep('payment')
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePayment = async () => {
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/razorpay-order', {
@@ -69,8 +98,7 @@ function PaymentModal({ onClose }: { onClose: () => void }) {
         prefill: { name, email },
         theme: { color: '#dc2626' },
         handler: (response: any) => {
-          const baseUrl = window.location.origin
-          window.location.href = `${baseUrl}/success?payment_id=${response.razorpay_payment_id}`
+          window.location.href = `${window.location.origin}/success?payment_id=${response.razorpay_payment_id}`
         },
         modal: { ondismiss: () => setLoading(false) },
       })
@@ -85,7 +113,9 @@ function PaymentModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4">
       <div className="bg-[#111118] border border-white/10 rounded-2xl p-8 w-full max-w-md relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"><X size={20} /></button>
-        <div className="flex items-center gap-3 mb-6">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-center">
             <Crown className="text-amber-400" size={18} />
           </div>
@@ -94,33 +124,95 @@ function PaymentModal({ onClose }: { onClose: () => void }) {
             <p className="text-white/40 text-sm">₹299/month · Cancel anytime</p>
           </div>
         </div>
-        <div className="bg-white/3 border border-white/8 rounded-xl p-4 mb-6 space-y-2">
-          {['✅ Unlimited downloads per day','✅ Up to 10,000 comments per video','✅ Bulk video processing','✅ Pay via UPI, Card, NetBanking'].map((b,i) => (
-            <p key={i} className="text-sm text-white/70">{b}</p>
-          ))}
-        </div>
-        <div className="space-y-3 mb-4">
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your full name"
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
-        </div>
-        {error && (
-          <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-4">
-            <AlertCircle size={14} />{error}
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-6 mt-4">
+          <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${step === 'account' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+            {step === 'account' ? '1' : '✓'} Create Account
           </div>
+          <div className="flex-1 h-px bg-white/10" />
+          <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${step === 'payment' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-white/30 border border-white/10'}`}>
+            2 Pay ₹299/month
+          </div>
+        </div>
+
+        {step === 'account' ? (
+          <>
+            {/* Benefits */}
+            <div className="bg-white/3 border border-white/8 rounded-xl p-4 mb-5 space-y-1.5">
+              {[
+                '✅ Unlimited downloads per day',
+                '✅ Up to 10,000 comments per video',
+                '✅ Download history & dashboard',
+                '✅ Pay via UPI, Card, NetBanking',
+              ].map((b, i) => <p key={i} className="text-sm text-white/70">{b}</p>)}
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <input type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder="Your full name"
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="Create password (min 6 chars)"
+                onKeyDown={e => e.key === 'Enter' && handleCreateAccount()}
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
+                <AlertCircle size={14} className="shrink-0" />{error}
+              </div>
+            )}
+
+            <button onClick={handleCreateAccount} disabled={loading}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
+              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+              {loading ? 'Creating account...' : 'Continue to Payment →'}
+            </button>
+
+            <p className="text-white/25 text-xs text-center mt-3">
+              Already have an account?{' '}
+              <Link href="/login" onClick={onClose} className="text-red-400 hover:text-red-300 transition-colors">Sign in here</Link>
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 mb-5">
+              <p className="text-green-400 font-semibold text-sm">✅ Account ready!</p>
+              <p className="text-white/50 text-xs mt-1">Signed in as {email}</p>
+            </div>
+
+            <div className="bg-white/3 border border-white/8 rounded-xl p-4 mb-5">
+              <div className="flex items-center justify-between">
+                <span className="text-white/60 text-sm">CommentPull Premium</span>
+                <span className="font-black text-xl">₹299<span className="text-white/40 text-sm font-normal">/mo</span></span>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
+                <AlertCircle size={14} className="shrink-0" />{error}
+              </div>
+            )}
+
+            <button onClick={handlePayment} disabled={loading}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Crown size={16} />}
+              {loading ? 'Opening payment...' : 'Pay ₹299/month via Razorpay'}
+            </button>
+
+            <p className="text-white/30 text-xs text-center mt-3">UPI · Cards · NetBanking · EMI</p>
+          </>
         )}
-        <button onClick={handlePayment} disabled={loading}
-          className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <Crown size={16} />}
-          {loading ? 'Opening payment...' : 'Pay ₹299/month'}
-        </button>
-        <p className="text-white/30 text-xs text-center mt-3">Secured by Razorpay · UPI · Cards · NetBanking</p>
       </div>
     </div>
   )
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [url, setUrl] = useState('')
   const [comments, setComments] = useState<Comment[]>([])
@@ -129,6 +221,8 @@ export default function Home() {
   const [videoId, setVideoId] = useState('')
   const [fetched, setFetched] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [isPremium, setIsPremium] = useState(false)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -137,6 +231,27 @@ export default function Home() {
     document.body.appendChild(script)
     return () => { document.body.removeChild(script) }
   }, [])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user)
+      if (data.user) checkPremium(data.user.id)
+    })
+    supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) checkPremium(session.user.id)
+      else setIsPremium(false)
+    })
+  }, [])
+
+  async function checkPremium(userId: string) {
+    const { data } = await supabase
+      .from('premium_users')
+      .select('is_active')
+      .eq('user_id', userId)
+      .single()
+    setIsPremium(data?.is_active || false)
+  }
 
   const handleFetch = async () => {
     setError(''); setComments([]); setFetched(false)
@@ -148,6 +263,15 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to fetch comments')
       setComments(data.comments); setFetched(true)
+      // Save to history only if logged in
+      if (user) {
+        await supabase.from('downloads').insert({
+          user_id: user.id,
+          video_id: vid,
+          comment_count: data.comments.length,
+          created_at: new Date().toISOString(),
+        })
+      }
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -155,40 +279,68 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-white font-sans">
       {showPayment && <PaymentModal onClose={() => setShowPayment(false)} />}
+
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-red-600/10 blur-[120px] animate-pulse" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-red-800/8 blur-[100px] animate-pulse delay-1000" />
         <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '40px 40px'}} />
       </div>
+
       <div className="relative z-10">
+        {/* Nav */}
         <nav className="border-b border-white/5 px-6 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center"><Youtube size={16} /></div>
               <span className="font-bold text-lg tracking-tight">CommentPull</span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-white/50">
-              <a href="#features" className="hover:text-white transition-colors">Features</a>
-              <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-              <button onClick={() => setShowPayment(true)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">Go Premium</button>
+            <div className="flex items-center gap-3 text-sm text-white/50">
+              <a href="#features" className="hover:text-white transition-colors hidden md:block">Features</a>
+              <a href="#pricing" className="hover:text-white transition-colors hidden md:block">Pricing</a>
+              {user ? (
+                <>
+                  {isPremium && (
+                    <span className="flex items-center gap-1 text-amber-400 text-xs font-semibold border border-amber-500/30 px-2 py-1 rounded-full">
+                      <Crown size={10} />Premium
+                    </span>
+                  )}
+                  <Link href="/dashboard"
+                    className="flex items-center gap-2 border border-white/20 hover:border-white/40 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
+                    <LayoutDashboard size={14} />Dashboard
+                  </Link>
+                </>
+              ) : (
+                <Link href="/login"
+                  className="border border-white/20 hover:border-white/40 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
+                  Sign In
+                </Link>
+              )}
+              <button onClick={() => setShowPayment(true)}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5">
+                <Crown size={13} />Go Premium
+              </button>
             </div>
           </div>
         </nav>
 
+        {/* Hero */}
         <section className="px-6 pt-24 pb-16 text-center">
           <div className="max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 bg-red-600/10 border border-red-600/20 rounded-full px-4 py-1.5 text-sm text-red-400 mb-6">
-              <Zap size={12} />Free · No signup required for first 3 downloads
+              <Zap size={12} />Free · No signup required · 3 downloads/day
             </div>
             <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-none">
               Download YouTube<span className="block text-red-500">Comments Instantly</span>
             </h1>
             <p className="text-xl text-white/50 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Paste any YouTube URL and export all comments as CSV in seconds. Perfect for research, sentiment analysis, and content strategy.
+              Paste any YouTube URL and export all comments as CSV in seconds.
+              Perfect for research, sentiment analysis, and content strategy.
             </p>
+
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm max-w-2xl mx-auto">
               <div className="flex flex-col sm:flex-row gap-3">
-                <input type="text" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleFetch()}
+                <input type="text" value={url} onChange={e => setUrl(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleFetch()}
                   placeholder="https://www.youtube.com/watch?v=..."
                   className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-red-500/50 transition-colors" />
                 <button onClick={handleFetch} disabled={loading || !url.trim()}
@@ -202,10 +354,23 @@ export default function Home() {
                   <AlertCircle size={14} />{error}
                 </div>
               )}
+              {/* Show login nudge for free users after fetch */}
+              {fetched && !user && (
+                <div className="mt-3 flex items-center justify-between bg-white/3 border border-white/8 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 text-white/50 text-sm">
+                    <History size={14} />
+                    <span>Sign in to save your download history</span>
+                  </div>
+                  <Link href="/login" className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors">
+                    Sign in →
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </section>
 
+        {/* Results */}
         {fetched && comments.length > 0 && (
           <section className="px-6 pb-16">
             <div className="max-w-5xl mx-auto">
@@ -219,10 +384,13 @@ export default function Home() {
                   <Download size={14} />Download CSV
                 </button>
               </div>
+
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
                 <div className="grid grid-cols-12 gap-4 px-5 py-3 text-xs text-white/40 uppercase tracking-wider border-b border-white/5 font-medium">
-                  <div className="col-span-3">Author</div><div className="col-span-6">Comment</div>
-                  <div className="col-span-1 text-center">Likes</div><div className="col-span-2 text-right">Date</div>
+                  <div className="col-span-3">Author</div>
+                  <div className="col-span-6">Comment</div>
+                  <div className="col-span-1 text-center">Likes</div>
+                  <div className="col-span-2 text-right">Date</div>
                 </div>
                 <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto">
                   {comments.map((c, i) => (
@@ -237,6 +405,7 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
               <div className="mt-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl px-5 py-4 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-amber-400">Want more than 100 comments?</p>
@@ -251,6 +420,7 @@ export default function Home() {
           </section>
         )}
 
+        {/* Features */}
         <section id="features" className="px-6 py-24 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-3xl font-black tracking-tight text-center mb-3">Everything you need</h2>
@@ -274,32 +444,62 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Pricing */}
         <section id="pricing" className="px-6 py-24 border-t border-white/5">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl font-black tracking-tight mb-3">Simple Pricing</h2>
             <p className="text-white/40 mb-16">Start free, scale when you need</p>
             <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+
+              {/* Free Card */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-left">
                 <div className="text-2xl font-black mb-1">Free</div>
-                <div className="text-white/40 text-sm mb-6">Forever</div>
+                <div className="text-white/40 text-sm mb-6">Forever · No signup needed</div>
                 <div className="text-4xl font-black mb-8">₹0</div>
                 <ul className="space-y-3 text-sm text-white/60 mb-8">
-                  {['3 downloads/day', '100 comments/video', 'CSV export', 'No signup needed'].map(f => (
+                  {[
+                    '3 downloads/day',
+                    '100 comments/video',
+                    'CSV export',
+                    'No account required',
+                  ].map(f => (
                     <li key={f} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-xs">✓</div>{f}
                     </li>
                   ))}
+                  {/* Locked features */}
+                  {[
+                    'Download history',
+                    'Dashboard access',
+                  ].map(f => (
+                    <li key={f} className="flex items-center gap-2 opacity-40">
+                      <div className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-xs">🔒</div>
+                      <span className="line-through">{f}</span>
+                    </li>
+                  ))}
                 </ul>
-                <button className="w-full border border-white/20 hover:border-white/40 text-white py-3 rounded-xl font-semibold transition-colors">Get Started Free</button>
+                <button onClick={() => document.getElementById('hero-input')?.focus()}
+                  className="w-full border border-white/20 hover:border-white/40 text-white py-3 rounded-xl font-semibold transition-colors">
+                  Start for Free ↑
+                </button>
               </div>
+
+              {/* Premium Card */}
               <div className="bg-gradient-to-b from-red-900/30 to-red-950/20 border border-red-500/30 rounded-2xl p-8 text-left relative overflow-hidden">
                 <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">POPULAR</div>
                 <div className="text-2xl font-black mb-1">Premium</div>
-                <div className="text-white/40 text-sm mb-6">Per month</div>
+                <div className="text-white/40 text-sm mb-6">With account · Cancel anytime</div>
                 <div className="text-4xl font-black mb-1">₹299</div>
-                <div className="text-white/30 text-sm mb-8">Pay via UPI · Cards · NetBanking</div>
+                <div className="text-white/30 text-sm mb-8">UPI · Cards · NetBanking</div>
                 <ul className="space-y-3 text-sm text-white/80 mb-8">
-                  {['Unlimited downloads', '10,000 comments/video', 'Bulk video processing', 'Priority support', 'API access'].map(f => (
+                  {[
+                    'Unlimited downloads/day',
+                    '10,000 comments/video',
+                    'Bulk video processing',
+                    'Download history dashboard',
+                    'Access all past downloads',
+                    'Priority support',
+                  ].map(f => (
                     <li key={f} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-red-500/30 flex items-center justify-center text-xs text-red-400">✓</div>{f}
                     </li>
@@ -309,17 +509,21 @@ export default function Home() {
                   className="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
                   <Crown size={16} />Upgrade Now — ₹299/month
                 </button>
+                <p className="text-white/30 text-xs text-center mt-3">Account created during checkout</p>
               </div>
+
             </div>
           </div>
         </section>
 
+        {/* AdSense Placeholder */}
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="bg-white/3 border border-dashed border-white/10 rounded-xl h-24 flex items-center justify-center text-white/20 text-sm">
             Google AdSense Ad Unit — 728×90 Leaderboard
           </div>
         </div>
 
+        {/* Footer */}
         <footer className="border-t border-white/5 px-6 py-10 mt-8">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-white/30 text-sm">
             <div className="flex items-center gap-2">
