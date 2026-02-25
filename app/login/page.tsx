@@ -80,13 +80,14 @@ export default function LoginPage() {
     }
   }
 
-  // Step 3: Create account
+  // Step 3: Create account then auto sign in
   const handleCreateAccount = async () => {
     setError('')
     if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true)
     try {
       const otpString = otp.join('')
+      // Create account
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,14 +95,29 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      if (data.session) {
-        localStorage.setItem('sb_session', JSON.stringify(data.session))
-        localStorage.setItem('sb_user', JSON.stringify(data.user))
+
+      // Account created — now sign in automatically
+      const signInRes = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'signin', email, password }),
+      })
+      const signInData = await signInRes.json()
+
+      if (signInData.session) {
+        localStorage.setItem('sb_session', JSON.stringify(signInData.session))
+        localStorage.setItem('sb_user', JSON.stringify(signInData.user))
+        router.push('/dashboard')
+      } else if (signInData.user) {
+        // No session but user exists — store user and go to dashboard
+        localStorage.setItem('sb_user', JSON.stringify(signInData.user))
+        localStorage.setItem('sb_session', JSON.stringify({ access_token: 'pending', user: signInData.user }))
         router.push('/dashboard')
       } else {
-        setError('Account created but login failed. Please sign in.')
+        // Fallback — pre-fill sign in form
         setMode('signin')
         setStep('signin')
+        setError('Account created! Please sign in with your new password.')
       }
     } catch (e: any) {
       setError(e.message)

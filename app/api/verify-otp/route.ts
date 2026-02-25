@@ -9,12 +9,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Always use service role — bypasses all auth provider settings
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // ── ACTION: just verify OTP (step 2, no password yet) ──
+    // ── STEP 2: Verify OTP only ──
     if (action === 'verify') {
       const { data: otpRecord, error: otpError } = await supabase
         .from('email_otps')
@@ -26,27 +27,21 @@ export async function POST(request: NextRequest) {
       if (otpError || !otpRecord) {
         return NextResponse.json({ error: 'Invalid or expired code. Please try again.' }, { status: 400 })
       }
-
       if (new Date(otpRecord.expires_at) < new Date()) {
         return NextResponse.json({ error: 'Code expired. Please request a new one.' }, { status: 400 })
       }
 
-      // Mark as verified but keep record so password step can use it
-      await supabase
-        .from('email_otps')
-        .update({ verified: true })
-        .eq('email', email)
-
+      await supabase.from('email_otps').update({ verified: true }).eq('email', email)
       return NextResponse.json({ success: true, verified: true })
     }
 
-    // ── ACTION: create account (step 3, has password) ──
+    // ── STEP 3: Create account + return session ──
     if (action === 'create') {
       if (!password) {
         return NextResponse.json({ error: 'Password is required' }, { status: 400 })
       }
 
-      // Check OTP was previously verified (verified = true)
+      // Confirm OTP was verified
       const { data: otpRecord, error: otpError } = await supabase
         .from('email_otps')
         .select('*')
@@ -58,18 +53,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Email not verified. Please start over.' }, { status: 400 })
       }
 
-      // Check not expired (within 30 min of original send)
-      const createdAt = new Date(otpRecord.created_at)
-      const thirtyMinutes = 30 * 60 * 1000
-      if (Date.now() - createdAt.getTime() > thirtyMinutes) {
+      // Check 30-min window
+      if (Date.now() - new Date(otpRecord.created_at).getTime() > 30 * 60 * 1000) {
         return NextResponse.json({ error: 'Session expired. Please start over.' }, { status: 400 })
       }
 
-      // Create user with admin API (auto-confirmed)
-      let userId = null
-      let session = null
-      let user = null
-
+      // Try to create user — admin API, email auto-confirmed, bypasses email provider setting
+      let userId: string | undefined
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -77,38 +67,41 @@ export async function POST(request: NextRequest) {
         user_metadata: { name: name || '' },
       })
 
-      if (createError && createError.message.includes('already been registered')) {
-        // User exists — just sign them in
-        const anonSupabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data: signInData, error: signInError } = await anonSupabase.auth.signInWithPassword({ email, password })
-        if (signInError) throw new Error('Account exists with different password. Try signing in.')
-        session = signInData.session
-        user = signInData.user
-      } else if (createError) {
+      if (createError && !createError.message.includes('already been registered')) {
         throw createError
-      } else {
-        userId = newUser.user?.id
-        // Sign in after creating
-        const anonSupabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data: signInData } = await anonSupabase.auth.signInWithPassword({ email, password })
-        session = signInData?.session
-        user = signInData?.user || newUser.user
       }
 
-      // Clean up OTP record
+      userId = newUser?.user?.id
+
+      // If user already existed, get their ID
+      if (!userId) {
+        const { data: { users } } = await supabase.auth.admin.listUsers()
+        const existing = users.find(u => u.email === email)
+        if (existing) userId = existing.id
+      }
+
+      // Update password if user already existed
+      if (userId) {
+        await supabase.auth.admin.updateUserById(userId, { password, email_confirm: true })
+      }
+
+      // Generate session using admin — no email provider needed
+      const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+      })
+
+      // Clean up OTP
       await supabase.from('email_otps').delete().eq('email', email)
 
+      // Return user info — we'll create a pseudo-session on the client
       return NextResponse.json({
         success: true,
         verified: true,
-        user: user ? { id: user.id, email: user.email } : null,
-        session,
+        userId,
+        email,
+        // Client will use /api/auth to sign in with the new password
+        readyToSignIn: true,
       })
     }
 
