@@ -34,7 +34,7 @@ function parseVideoId(url: string): string | null {
   return null
 }
 
-function downloadCSV(comments: Comment[], videoId: string) {
+function triggerCSVDownload(comments: Comment[], videoId: string) {
   const headers = ['Type', 'Author', 'Comment', 'Likes', 'Published At', 'Replies']
   const rows = comments.map(c => [
     c.isReply ? 'Reply' : 'Comment',
@@ -229,6 +229,8 @@ export default function Home() {
   const [isPremium, setIsPremium] = useState(false)
   const [includeReplies, setIncludeReplies] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [downloadsToday, setDownloadsToday] = useState(0)
+  const [downloadsRemaining, setDownloadsRemaining] = useState(5)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -239,20 +241,37 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    // Read user from localStorage (set during login)
     try {
       const userStr = localStorage.getItem('sb_user')
       const sessionStr = localStorage.getItem('sb_session')
       if (userStr && sessionStr) {
         const u = JSON.parse(userStr)
         setUser(u)
-        // Check premium via server API
-        if (u?.id) checkPremium(u.id)
+        if (u?.id) {
+          checkPremium(u.id)
+          loadDownloadCount(u.id)
+        }
+      } else {
+        loadDownloadCount(null)
       }
     } catch (e) {
       console.error('Auth read error:', e)
     }
   }, [])
+
+  async function loadDownloadCount(userId: string | null) {
+    try {
+      const url = userId ? `/api/save-download?userId=${userId}` : '/api/save-download'
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        if (!data.isPremium) {
+          setDownloadsToday(data.count || 0)
+          setDownloadsRemaining(data.remaining ?? 5)
+        }
+      }
+    } catch (e) { console.error('Count load error:', e) }
+  }
 
   async function checkPremium(userId: string) {
     try {
@@ -289,24 +308,53 @@ export default function Home() {
       setComments(data.comments)
       setFetched(true)
       setHasMore(data.hasMore || false)
-      // Save to download history via server (no ISP block)
-      if (user?.id) {
-        try {
-          await fetch('/api/save-download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user.id,
-              videoId: vid,
-              commentCount: data.comments.length,
-            })
-          })
-        } catch (e) {
-          console.error('Save download error:', e)
-        }
-      }
+      // NOTE: Download is only counted when user clicks "Download CSV", not on fetch
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
+  }
+
+  const handleDownload = async () => {
+    // Check limit first via API
+    try {
+      const checkUrl = user?.id ? `/api/save-download?userId=${user.id}` : '/api/save-download'
+      const checkRes = await fetch(checkUrl)
+      const checkData = await checkRes.json()
+
+      if (!checkData.isPremium && (checkData.remaining ?? 5) <= 0) {
+        setError(`Daily download limit reached (${checkData.limit}/day). Upgrade to Premium for unlimited downloads!`)
+        setShowPayment(true)
+        return
+      }
+    } catch (e) { /* fail open */ }
+
+    // Save the download count
+    try {
+      const saveRes = await fetch('/api/save-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id || null,
+          videoId,
+          commentCount: comments.length,
+        })
+      })
+      const saveData = await saveRes.json()
+
+      if (saveData.limitReached) {
+        setError(`Daily download limit reached (5/day). Upgrade to Premium for unlimited downloads!`)
+        setShowPayment(true)
+        return
+      }
+
+      // Update UI counts
+      if (saveData.count !== null) {
+        setDownloadsToday(saveData.count)
+        setDownloadsRemaining(saveData.remaining ?? 0)
+      }
+    } catch (e) { /* fail open — still allow download */ }
+
+    // Actually trigger CSV download
+    triggerCSVDownload(comments, videoId)
   }
 
   return (
@@ -360,7 +408,7 @@ export default function Home() {
         <section className="px-6 pt-24 pb-16 text-center">
           <div className="max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 bg-red-600/10 border border-red-600/20 rounded-full px-4 py-1.5 text-sm text-red-400 mb-6">
-              <Zap size={12} />Free · No signup required · 3 downloads/day
+              <Zap size={12} />Free · No signup required · 5 downloads/day
             </div>
             <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-none">
               Download YouTube<span className="block text-red-500">Comments Instantly</span>
@@ -438,10 +486,30 @@ export default function Home() {
                     {!isPremium && <span className="ml-2 text-amber-400/70">· Free tier (top 100)</span>}
                   </p>
                 </div>
-                <button onClick={() => downloadCSV(comments, videoId)}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-semibold transition-colors text-sm">
-                  <Download size={14} />Download CSV
-                </button>
+                <div className="flex flex-col items-end gap-1.5">
+                  <button onClick={handleDownload}
+                    disabled={!isPremium && downloadsRemaining <= 0}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl font-semibold transition-colors text-sm">
+                    <Download size={14} />Download CSV
+                  </button>
+                  {!isPremium && (
+                    <div className="flex items-center gap-1.5">
+                      {/* Visual pip counter */}
+                      <div className="flex gap-1">
+                        {[1,2,3,4,5].map(i => (
+                          <div key={i} className={`w-2 h-2 rounded-full transition-all ${
+                            i <= downloadsToday ? 'bg-red-500' : 'bg-white/20'
+                          }`} />
+                        ))}
+                      </div>
+                      <span className={`text-xs font-medium ${downloadsRemaining <= 1 ? 'text-red-400' : 'text-white/40'}`}>
+                        {downloadsRemaining > 0
+                          ? `${downloadsRemaining} download${downloadsRemaining !== 1 ? 's' : ''} left today`
+                          : 'Daily limit reached'}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
@@ -528,7 +596,7 @@ export default function Home() {
                 <div className="text-4xl font-black mb-8">₹0</div>
                 <ul className="space-y-3 text-sm text-white/60 mb-8">
                   {[
-                    '3 downloads/day',
+                    '5 downloads/day',
                     '100 comments/video',
                     'CSV export',
                     'No account required',
