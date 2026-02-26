@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Youtube, Mail, Lock, Loader2, AlertCircle, CheckCircle, Eye, EyeOff, ArrowLeft, Shield, Sparkles } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -9,6 +10,7 @@ type Step = 'email' | 'otp' | 'password' | 'signin'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [mode, setMode] = useState<'signup' | 'signin'>('signup')
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
@@ -30,10 +32,12 @@ export default function LoginPage() {
     }
   }, [resendTimer])
 
-  // Check if already logged in
+  // Check if already logged in + show URL errors
   useEffect(() => {
     const user = localStorage.getItem('sb_user')
     if (user) router.replace('/')
+    const urlError = searchParams.get('error')
+    if (urlError) setError(decodeURIComponent(urlError))
   }, [])
 
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
@@ -120,9 +124,13 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.error)
       if (data.user) {
         localStorage.setItem('sb_user', JSON.stringify(data.user))
-        localStorage.setItem('sb_session', JSON.stringify(data.session || { access_token: `local_${data.user.id}` }))
+        // Use real session if available, otherwise local fallback
+        const sessionToStore = data.session || { access_token: `local_${data.user.id}`, user: data.user }
+        localStorage.setItem('sb_session', JSON.stringify(sessionToStore))
         router.push('/')
-      } else throw new Error(data.error || 'Sign in failed')
+      } else {
+        throw new Error(data.error || 'Sign in failed. Please try again.')
+      }
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
