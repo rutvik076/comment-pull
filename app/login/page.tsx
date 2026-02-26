@@ -42,17 +42,38 @@ export default function LoginPage() {
 
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 
-  // Google OAuth
+  // Google OAuth — must run CLIENT-SIDE so Supabase can store PKCE verifier in localStorage
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/google-auth', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start Google login')
-      window.location.href = data.url
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      })
+
+      if (error) throw error
+      if (data?.url) {
+        // Supabase has stored the PKCE verifier in localStorage
+        // Navigate to Google — callback page will complete the flow
+        window.location.href = data.url
+      } else {
+        throw new Error('No OAuth URL returned')
+      }
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message || 'Failed to start Google sign in')
       setGoogleLoading(false)
     }
   }
