@@ -169,6 +169,7 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(false)
   const [downloadsToday, setDownloadsToday] = useState(0)
   const [downloadsRemaining, setDownloadsRemaining] = useState(5)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -222,7 +223,9 @@ export default function Home() {
   const handleDownload = async () => {
     if (!user) { window.location.href = '/login'; return }
     if (!isPremium && downloadsRemaining <= 0) { setShowUpgrade(true); return }
+    if (downloading) return
 
+    setDownloading(true)
     try {
       const res = await fetch('/api/save-download', {
         method: 'POST',
@@ -230,14 +233,21 @@ export default function Home() {
         body: JSON.stringify({ userId: user.id, videoId, commentCount: comments.length })
       })
       const data = await res.json()
-      if (data.limitReached) { setShowUpgrade(true); return }
+      if (data.limitReached) { setShowUpgrade(true); setDownloading(false); return }
       if (data.count !== null && data.count !== undefined) {
         setDownloadsToday(data.count)
         setDownloadsRemaining(Math.max(0, data.remaining ?? 0))
       }
-    } catch (e) { /* fail open */ }
 
-    triggerCSVDownload(comments, videoId)
+      // Small delay so spinner is visible, then trigger download
+      await new Promise(r => setTimeout(r, 600))
+      triggerCSVDownload(comments, videoId)
+    } catch (e) { /* fail open — still download */
+      triggerCSVDownload(comments, videoId)
+    } finally {
+      // Hide spinner after file save dialog appears
+      setTimeout(() => setDownloading(false), 800)
+    }
   }
 
   function handleSignOut() {
@@ -378,9 +388,13 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-end gap-1.5">
-                    <button onClick={handleDownload} disabled={!isPremium && downloadsRemaining <= 0}
-                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl font-semibold transition-colors text-sm">
-                      <Download size={14} />Download CSV
+                    <button onClick={handleDownload}
+                      disabled={downloading || (!isPremium && downloadsRemaining <= 0)}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl font-semibold transition-all text-sm min-w-[160px] justify-center">
+                      {downloading
+                        ? <><Loader2 size={14} className="animate-spin" />Preparing file…</>
+                        : <><Download size={14} />Download CSV</>
+                      }
                     </button>
                     {!isPremium && (
                       <div className="flex items-center gap-1.5">
