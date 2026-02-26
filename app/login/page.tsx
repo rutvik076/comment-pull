@@ -46,12 +46,23 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError('')
+
+    // Safety: always reset after 8 seconds if something hangs
+    const timeout = setTimeout(() => {
+      setGoogleLoading(false)
+      setError('Google sign in timed out. Please try again.')
+    }, 8000)
+
     try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('App configuration missing. Please contact support.')
+      }
+
       const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const supabase = createClient(supabaseUrl, supabaseKey)
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -64,15 +75,18 @@ export default function LoginPage() {
         },
       })
 
+      clearTimeout(timeout)
+
       if (error) throw error
+
       if (data?.url) {
-        // Supabase has stored the PKCE verifier in localStorage
-        // Navigate to Google — callback page will complete the flow
         window.location.href = data.url
+        // Keep loading state — page is navigating away
       } else {
-        throw new Error('No OAuth URL returned')
+        throw new Error('Google sign in unavailable. Check Supabase Google provider is enabled.')
       }
     } catch (e: any) {
+      clearTimeout(timeout)
       setError(e.message || 'Failed to start Google sign in')
       setGoogleLoading(false)
     }
