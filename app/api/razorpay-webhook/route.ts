@@ -2,82 +2,87 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 
-function verifyWebhookSignature(body: string, signature: string, secret: string): boolean {
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('hex')
-  return expectedSignature === signature
+function verifySignature(body: string, signature: string, secret: string): boolean {
+  return crypto.createHmac('sha256', secret).update(body).digest('hex') === signature
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.text()
   const signature = request.headers.get('x-razorpay-signature') || ''
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET!
 
-  // Verify signature
-  if (!verifyWebhookSignature(body, signature, webhookSecret)) {
-    console.error('Invalid Razorpay webhook signature')
+  if (!verifySignature(body, signature, process.env.RAZORPAY_WEBHOOK_SECRET!)) {
+    console.error('Invalid webhook signature')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   const event = JSON.parse(body)
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  console.log('Razorpay webhook event:', event.event)
+  console.log('Webhook event:', event.event)
 
   switch (event.event) {
     case 'subscription.activated':
     case 'subscription.charged': {
-      const subscription = event.payload.subscription.entity
-      const email = subscription.notes?.email
+      const sub = event.payload.subscription.entity
+      const payment = event.payload.payment?.entity
+      const email = sub.notes?.email || payment?.email
 
-      if (email) {
-        // Find user by email
-        const { data: users } = await supabase
-          .from('auth.users')
-          .select('id')
-          .eq('email', email)
-          .limit(1)
+      if (!email) { console.error('No email in webhook payload'); break }
 
-        const userId = users?.[0]?.id
+      // Get user ID from Supabase auth using admin API
+      const { data: { users } } = await db.auth.admin.listUsers()
+      const user = users.find(u => u.email === email)
+      const userId = user?.id || null
 
-        await supabase.from('premium_users').upsert({
-          user_id: userId || null,
-          email,
-          razorpay_subscription_id: subscription.id,
-          is_active: true,
-          expires_at: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+      // Calculate next renewal
+      const currentEnd = sub.current_end
+      const renewalDate = currentEnd
+        ? new Date(currentEnd * 1000).toISOString()
+        : new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString()
 
-        console.log(`✅ Premium activated for: ${email}`)
-      }
+      await db.from('premium_users').upsert({
+        user_id: userId,
+        email,
+        razorpay_subscription_id: sub.id,
+        razorpay_plan_id: sub.plan_id,
+        is_active: true,
+        plan: 'premium',
+        renewal_date: renewalDate,
+        activated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'email' })
+
+      console.log(`✅ Premium activated: ${email}, renewal: ${renewalDate}`)
       break
     }
 
-    case 'subscription.cancelled':
-    case 'subscription.completed': {
-      const subscription = event.payload.subscription.entity
-      await supabase
-        .from('premium_users')
-        .update({ is_active: false })
-        .eq('razorpay_subscription_id', subscription.id)
+    case 'subscription.cancelled': {
+      const sub = event.payload.subscription.entity
+      // Keep premium active until billing period ends (grace period)
+      const endDate = sub.ended_at
+        ? new Date(sub.ended_at * 1000).toISOString()
+        : new Date().toISOString()
 
-      console.log(`❌ Premium cancelled: ${subscription.id}`)
+      await db.from('premium_users').update({
+        is_active: true, // Keep active until period ends
+        cancelled_at: new Date().toISOString(),
+        renewal_date: endDate, // This becomes the expiry date
+        updated_at: new Date().toISOString(),
+      }).eq('razorpay_subscription_id', sub.id)
+
+      console.log(`⚠️ Premium cancelled (active until ${endDate}): ${sub.id}`)
       break
     }
 
+    case 'subscription.completed':
     case 'subscription.halted': {
-      // Payment failed repeatedly
-      const subscription = event.payload.subscription.entity
-      await supabase
-        .from('premium_users')
-        .update({ is_active: false })
-        .eq('razorpay_subscription_id', subscription.id)
+      const sub = event.payload.subscription.entity
+      await db.from('premium_users').update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      }).eq('razorpay_subscription_id', sub.id)
+
+      console.log(`❌ Premium deactivated: ${sub.id}`)
       break
     }
   }
