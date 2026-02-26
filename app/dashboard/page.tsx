@@ -331,7 +331,11 @@ export default function Dashboard() {
                       <div><p className="font-bold text-sm">API Access</p><p className="text-white/40 text-xs">For organizations</p></div>
                     </div>
                     <p className="text-white/50 text-xs leading-relaxed">Integrate CommentPull directly into your systems with our REST API.</p>
-                    {isPremium && <button className="mt-3 text-cyan-400 text-xs font-semibold hover:text-cyan-300 transition-colors flex items-center gap-1">View API Docs <ExternalLink size={10} /></button>}
+                    {isPremium && (
+                  <a href="/docs" className="mt-3 text-cyan-400 text-xs font-semibold hover:text-cyan-300 transition-colors flex items-center gap-1 w-fit">
+                    View API Docs & Keys <ExternalLink size={10} />
+                  </a>
+                )}
                   </div>
                 </div>
 
