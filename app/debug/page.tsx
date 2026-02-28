@@ -1,198 +1,167 @@
 'use client'
 import { useState } from 'react'
 
-type TestResult = {
-  name: string
-  status: 'pending' | 'running' | 'pass' | 'fail'
-  detail: string
-  data?: any
-}
+type R = { name: string; status: 'pending'|'running'|'pass'|'fail'; detail: string; data?: any }
 
 export default function DebugPage() {
-  const [results, setResults] = useState<TestResult[]>([])
+  const [results, setResults] = useState<R[]>([])
   const [running, setRunning] = useState(false)
+  const [googleUrl, setGoogleUrl] = useState('')
 
-  function update(name: string, status: TestResult['status'], detail: string, data?: any) {
+  function upd(name: string, status: R['status'], detail: string, data?: any) {
     setResults(prev => {
-      const existing = prev.find(r => r.name === name)
-      if (existing) return prev.map(r => r.name === name ? { ...r, status, detail, data } : r)
+      const exists = prev.find(r => r.name === name)
+      if (exists) return prev.map(r => r.name === name ? { ...r, status, detail, data } : r)
       return [...prev, { name, status, detail, data }]
     })
   }
 
   async function runAll() {
-    setResults([])
-    setRunning(true)
+    setResults([]); setRunning(true)
 
-    // ── TEST 1: Env vars present ──────────────────────────────────
-    update('1. Env vars', 'running', 'Checking...')
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    if (!supabaseUrl || !supabaseKey) {
-      update('1. Env vars', 'fail', `MISSING — URL: ${supabaseUrl ? '✓' : '✗'}, KEY: ${supabaseKey ? '✓' : '✗'}, APP_URL: ${appUrl || 'not set'}`)
-    } else {
-      update('1. Env vars', 'pass', `URL: ${supabaseUrl} | KEY: ${supabaseKey.slice(0,20)}... | APP_URL: ${appUrl || 'not set'}`)
-    }
+    // Test 1: Env vars
+    upd('1. Env vars', 'running', 'Checking...')
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const gid = process.env.NEXT_PUBLIC_APP_URL
+    const hasUrl = !!url, hasKey = !!key
+    upd('1. Env vars', hasUrl && hasKey ? 'pass' : 'fail',
+      `SUPABASE_URL: ${hasUrl ? url : '❌ MISSING'} | ANON_KEY: ${hasKey ? key!.slice(0,20)+'...' : '❌ MISSING'} | APP_URL: ${gid || 'not set'}`)
 
-    // ── TEST 2: Can browser reach Supabase URL ────────────────────
-    update('2. Supabase reachable from browser', 'running', 'Pinging...')
+    // Test 2: Browser → Supabase
+    upd('2. Browser → Supabase', 'running', 'Pinging...')
     try {
-      const res = await fetch(`${supabaseUrl}/auth/v1/health`, { signal: AbortSignal.timeout(5000) })
-      const json = await res.json().catch(() => ({}))
-      update('2. Supabase reachable from browser', res.ok ? 'pass' : 'fail',
-        `Status: ${res.status} | ${JSON.stringify(json)}`)
+      const r = await fetch(`${url}/auth/v1/health`, { signal: AbortSignal.timeout(4000) })
+      upd('2. Browser → Supabase', r.ok ? 'pass' : 'fail', `HTTP ${r.status}`)
     } catch (e: any) {
-      update('2. Supabase reachable from browser', 'fail',
-        `BLOCKED or timeout: ${e.message} — This means your ISP blocks supabase.co`)
+      upd('2. Browser → Supabase', 'fail', `❌ BLOCKED by ISP — ${e.message} (only affects YOU, not your users)`)
     }
 
-    // ── TEST 3: Server can reach Supabase ─────────────────────────
-    update('3. Supabase reachable from server', 'running', 'Testing via /api/debug-ping...')
+    // Test 3: Server → Supabase
+    upd('3. Server → Supabase', 'running', 'Testing...')
     try {
-      const res = await fetch('/api/debug-ping', { method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `${supabaseUrl}/auth/v1/health` })
-      })
-      const json = await res.json()
-      update('3. Supabase reachable from server', json.ok ? 'pass' : 'fail',
-        `Server got: ${json.status} — ${json.body || json.error}`)
-    } catch (e: any) {
-      update('3. Supabase reachable from server', 'fail', e.message)
-    }
+      const r = await fetch('/api/debug-ping', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ url: `${url}/auth/v1/health`, apikey: key }) })
+      const j = await r.json()
+      upd('3. Server → Supabase', j.ok ? 'pass' : 'fail', `HTTP ${j.status}: ${j.body || j.error}`)
+    } catch(e:any) { upd('3. Server → Supabase','fail',e.message) }
 
-    // ── TEST 4: google-auth API returns a URL ─────────────────────
-    update('4. /api/google-auth returns URL', 'running', 'Calling server...')
+    // Test 4: google-auth returns URL
+    upd('4. Google OAuth URL generated', 'running', 'Calling /api/google-auth...')
     try {
-      const res = await fetch('/api/google-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isLocal: window.location.hostname === 'localhost' })
-      })
-      const json = await res.json()
-      if (json.url) {
-        update('4. /api/google-auth returns URL', 'pass',
-          `Got URL ✓ — starts with: ${json.url.slice(0, 80)}...`, json.url)
+      const r = await fetch('/api/google-auth', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ isLocal: window.location.hostname === 'localhost' }) })
+      const j = await r.json()
+      if (j.url) {
+        setGoogleUrl(j.url)
+        const isGoogle = j.url.startsWith('https://accounts.google.com')
+        upd('4. Google OAuth URL generated', 'pass',
+          `${isGoogle ? '✅ accounts.google.com (Supabase NOT in URL)' : '⚠️ unexpected domain'}: ${j.url.slice(0,80)}...`, j.url)
       } else {
-        update('4. /api/google-auth returns URL', 'fail',
-          `No URL returned. Error: ${json.error || 'unknown'}`)
+        upd('4. Google OAuth URL generated', 'fail', `Error: ${j.error}`)
       }
-    } catch (e: any) {
-      update('4. /api/google-auth returns URL', 'fail', e.message)
-    }
+    } catch(e:any) { upd('4. Google OAuth URL generated','fail',e.message) }
 
-    // ── TEST 5: Check what redirect_to is in the URL ──────────────
-    update('5. redirect_to in OAuth URL', 'running', 'Checking URL params...')
-    const test4 = results.find(r => r.name === '4. /api/google-auth returns URL') 
-    // re-fetch to get fresh data
+    // Test 5: redirect_uri correct
+    upd('5. redirect_uri in URL', 'running', 'Checking...')
     try {
-      const res = await fetch('/api/google-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isLocal: window.location.hostname === 'localhost' })
-      })
-      const json = await res.json()
-      if (json.url) {
-        const urlObj = new URL(json.url)
-        const redirectTo = urlObj.searchParams.get('redirect_to') || urlObj.searchParams.get('redirect_uri')
-        update('5. redirect_to in OAuth URL', 'pass',
-          `redirect_to = ${redirectTo}`)
+      const r = await fetch('/api/google-auth', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ isLocal: window.location.hostname === 'localhost' }) })
+      const j = await r.json()
+      if (j.url) {
+        const u = new URL(j.url)
+        const redir = u.searchParams.get('redirect_uri') || u.searchParams.get('redirect_to')
+        const correct = redir?.includes('comment-pull-rfot.vercel.app') || redir?.includes('localhost')
+        upd('5. redirect_uri in URL', correct ? 'pass' : 'fail', `redirect_uri = ${redir}`)
+      } else { upd('5. redirect_uri in URL','fail','No URL') }
+    } catch(e:any) { upd('5. redirect_uri in URL','fail',e.message) }
+
+    // Test 6: GOOGLE_CLIENT_ID env var set on server
+    upd('6. GOOGLE_CLIENT_ID on server', 'running', 'Checking via google-auth...')
+    try {
+      const r = await fetch('/api/google-auth', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ isLocal: false }) })
+      const j = await r.json()
+      if (j.error?.includes('GOOGLE_CLIENT_ID not configured')) {
+        upd('6. GOOGLE_CLIENT_ID on server', 'fail', '❌ GOOGLE_CLIENT_ID env var missing in Vercel!')
+      } else if (j.url) {
+        upd('6. GOOGLE_CLIENT_ID on server', 'pass', '✅ GOOGLE_CLIENT_ID is set')
       } else {
-        update('5. redirect_to in OAuth URL', 'fail', 'No URL to check')
+        upd('6. GOOGLE_CLIENT_ID on server', 'fail', j.error || 'unknown')
       }
-    } catch (e: any) {
-      update('5. redirect_to in OAuth URL', 'fail', e.message)
-    }
+    } catch(e:any) { upd('6. GOOGLE_CLIENT_ID on server','fail',e.message) }
 
-    // ── TEST 6: /api/auth-callback endpoint exists ────────────────
-    update('6. /api/auth-callback exists', 'running', 'Testing endpoint...')
+    // Test 7: GOOGLE_CLIENT_SECRET on server (indirect — auth-callback will say "not configured" if missing)
+    upd('7. GOOGLE_CLIENT_SECRET on server', 'running', 'Checking...')
     try {
-      const res = await fetch('/api/auth-callback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: 'test_fake_code' })
-      })
-      const json = await res.json()
-      // We expect an error about invalid code — but NOT a 404
-      if (res.status === 404) {
-        update('6. /api/auth-callback exists', 'fail', 'Route does not exist — 404')
+      const r = await fetch('/api/auth-callback', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code: 'test', isLocal: false }) })
+      const j = await r.json()
+      if (j.error?.includes('not configured')) {
+        upd('7. GOOGLE_CLIENT_SECRET on server', 'fail', '❌ GOOGLE_CLIENT_SECRET missing in Vercel!')
       } else {
-        update('6. /api/auth-callback exists', 'pass',
-          `Route exists (returned ${res.status}): ${json.error || 'ok'}`)
+        upd('7. GOOGLE_CLIENT_SECRET on server', 'pass', `✅ Set (test code returned: "${j.error}")`)
       }
-    } catch (e: any) {
-      update('6. /api/auth-callback exists', 'fail', e.message)
-    }
+    } catch(e:any) { upd('7. GOOGLE_CLIENT_SECRET on server','fail',e.message) }
 
-    // ── TEST 7: Check Google Cloud redirect URIs ──────────────────
-    update('7. Google Cloud config check', 'pass',
-      `You must manually verify: Google Cloud → Credentials → commentpull → Authorized redirect URIs contains EXACTLY: https://comment-pull-rfot.vercel.app/auth/callback AND http://localhost:3000/auth/callback`)
-
-    // ── TEST 8: Check auth/callback page exists ───────────────────
-    update('8. /auth/callback page exists', 'running', 'Checking...')
+    // Test 8: /auth/callback page exists (not route.ts)
+    upd('8. /auth/callback page', 'running', 'Checking...')
     try {
-      const res = await fetch('/auth/callback')
-      update('8. /auth/callback page exists', res.ok ? 'pass' : 'fail',
-        `Status: ${res.status}`)
-    } catch (e: any) {
-      update('8. /auth/callback page exists', 'fail', e.message)
-    }
+      const r = await fetch('/auth/callback')
+      upd('8. /auth/callback page', r.ok ? 'pass' : 'fail',
+        r.ok ? '✅ Page exists and loads' : `HTTP ${r.status} — page missing!`)
+    } catch(e:any) { upd('8. /auth/callback page','fail',e.message) }
 
-    // ── TEST 9: Check for conflicting route.ts ────────────────────
-    update('9. No conflicting route.ts', 'pass',
-      'Cannot check from browser. In Cursor: verify app/auth/callback/ has ONLY page.tsx, NOT route.ts')
+    // Test 9: Google Cloud redirect URI reminder
+    upd('9. Google Cloud redirect URI', 'pass',
+      'Manually verify in Google Cloud → Credentials → commentpull → Authorized redirect URIs contains: https://comment-pull-rfot.vercel.app/auth/callback')
 
     setRunning(false)
   }
 
-  const statusColor = (s: TestResult['status']) => ({
-    pending: 'text-white/30',
-    running: 'text-yellow-400',
-    pass: 'text-green-400',
-    fail: 'text-red-400',
-  }[s])
+  const bg = (s:R['status']) => ({ pending:'bg-white/3 border-white/8', running:'bg-yellow-500/5 border-yellow-500/20', pass:'bg-green-500/5 border-green-500/20', fail:'bg-red-500/8 border-red-500/25' }[s])
+  const col = (s:R['status']) => ({ pending:'text-white/30', running:'text-yellow-400', pass:'text-green-400', fail:'text-red-400' }[s])
+  const icon = (s:R['status']) => ({ pending:'○', running:'◌', pass:'✓', fail:'✗' }[s])
 
-  const statusIcon = (s: TestResult['status']) => ({
-    pending: '○',
-    running: '◌',
-    pass: '✓',
-    fail: '✗',
-  }[s])
-
-  const statusBg = (s: TestResult['status']) => ({
-    pending: 'bg-white/3 border-white/10',
-    running: 'bg-yellow-500/5 border-yellow-500/20',
-    pass: 'bg-green-500/5 border-green-500/20',
-    fail: 'bg-red-500/8 border-red-500/25',
-  }[s])
+  const failed = results.filter(r=>r.status==='fail')
+  const passed = results.filter(r=>r.status==='pass')
 
   return (
-    <div className="min-h-screen bg-[#080810] text-white p-8 font-mono">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl font-black mb-2">🔍 Google OAuth Debug</h1>
-        <p className="text-white/40 text-sm mb-8">Tests every step of the sign-in flow to find exactly where it breaks</p>
+    <div className="min-h-screen bg-[#080810] text-white p-6 font-mono text-sm">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-xl font-black mb-1">🔍 Google OAuth Debug</h1>
+        <p className="text-white/30 text-xs mb-6">Tests every step — share screenshot if issues persist</p>
 
         <button onClick={runAll} disabled={running}
-          className="mb-8 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-all">
-          {running ? '⏳ Running tests...' : '▶ Run All Tests'}
+          className="mb-6 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
+          {running ? '⏳ Running...' : '▶ Run All Tests'}
         </button>
 
-        <div className="space-y-3">
+        {googleUrl && (
+          <div className="mb-6 bg-green-500/8 border border-green-500/20 rounded-xl p-4">
+            <p className="text-green-400 font-bold text-xs mb-2">✅ Google OAuth URL ready — click to test sign in:</p>
+            <a href={googleUrl} className="text-cyan-400 text-xs break-all hover:underline block mb-2">{googleUrl}</a>
+            <a href={googleUrl}
+              className="inline-flex items-center gap-2 bg-white text-gray-800 font-bold px-4 py-2 rounded-lg text-xs hover:bg-gray-100 transition-all">
+              <svg width="14" height="14" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+              Test Google Sign In Now
+            </a>
+          </div>
+        )}
+
+        <div className="space-y-2">
           {results.map(r => (
-            <div key={r.name} className={`border rounded-xl p-4 transition-all ${statusBg(r.status)}`}>
-              <div className="flex items-start gap-3">
-                <span className={`text-lg font-black shrink-0 ${statusColor(r.status)}`}>
-                  {statusIcon(r.status)}
-                </span>
+            <div key={r.name} className={`border rounded-xl p-3.5 ${bg(r.status)}`}>
+              <div className="flex items-start gap-2.5">
+                <span className={`font-black shrink-0 ${col(r.status)}`}>{icon(r.status)}</span>
                 <div className="flex-1 min-w-0">
-                  <p className={`font-bold text-sm ${statusColor(r.status)}`}>{r.name}</p>
-                  <p className="text-white/50 text-xs mt-1 break-all leading-relaxed">{r.detail}</p>
-                  {r.data && r.name.includes('google-auth') && (
-                    <a href={r.data} target="_blank"
-                      className="text-cyan-400 text-xs mt-2 block hover:underline truncate">
-                      {r.data}
-                    </a>
-                  )}
+                  <p className={`font-bold ${col(r.status)}`}>{r.name}</p>
+                  <p className="text-white/40 text-xs mt-0.5 break-all leading-relaxed">{r.detail}</p>
                 </div>
               </div>
             </div>
@@ -200,12 +169,17 @@ export default function DebugPage() {
         </div>
 
         {results.length > 0 && !running && (
-          <div className="mt-8 bg-white/3 border border-white/10 rounded-xl p-5">
-            <p className="font-bold text-sm mb-3">📋 Summary</p>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Failed: {results.filter(r => r.status === 'fail').map(r => r.name).join(', ') || 'none'}<br/>
-              Passed: {results.filter(r => r.status === 'pass').length}/{results.length}
-            </p>
+          <div className="mt-6 bg-white/3 border border-white/10 rounded-xl p-4">
+            <p className="font-bold mb-2">Summary: {passed.length}/{results.length} passed</p>
+            {failed.length > 0 && (
+              <div>
+                <p className="text-red-400 text-xs font-bold mb-1">Failed:</p>
+                {failed.map(f => <p key={f.name} className="text-red-400/70 text-xs">• {f.name}: {f.detail}</p>)}
+              </div>
+            )}
+            {failed.length === 0 && (
+              <p className="text-green-400 text-xs">All critical tests passed! Google sign in should work.</p>
+            )}
           </div>
         )}
       </div>
