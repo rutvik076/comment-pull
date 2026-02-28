@@ -32,47 +32,57 @@ export default function LoginPage() {
     }
   }, [resendTimer])
 
-  // Check if already logged in + show URL errors
   useEffect(() => {
-    const user = localStorage.getItem('sb_user')
-    if (user) router.replace('/')
+    // If already logged in with valid session, redirect away
+    try {
+      const userStr = localStorage.getItem('sb_user')
+      const sessionStr = localStorage.getItem('sb_session')
+      if (userStr && sessionStr) {
+        const u = JSON.parse(userStr)
+        const s = JSON.parse(sessionStr)
+        if (u?.id && s?.access_token) {
+          // Valid session — go back to where they came from
+          const returnTo = sessionStorage.getItem('returnTo') || '/'
+          sessionStorage.removeItem('returnTo')
+          router.replace(returnTo)
+          return
+        }
+      }
+    } catch { /* ignore parse errors */ }
+
+    // Show URL error if any (e.g. from OAuth callback)
     const urlError = searchParams.get('error')
     if (urlError) setError(decodeURIComponent(urlError))
   }, [])
 
+  function saveSessionAndRedirect(user: any, session: any) {
+    localStorage.setItem('sb_user', JSON.stringify(user))
+    localStorage.setItem('sb_session', JSON.stringify(session))
+    const returnTo = sessionStorage.getItem('returnTo') || '/'
+    sessionStorage.removeItem('returnTo')
+    router.push(returnTo)
+  }
+
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 
-  // Google OAuth — must run CLIENT-SIDE so Supabase can store PKCE verifier in localStorage
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError('')
-
-    // Safety timeout
     const timeout = setTimeout(() => {
       setGoogleLoading(false)
       setError('Google sign in timed out. Please try again.')
     }, 10000)
-
     try {
-      // Call OUR server to generate the Google OAuth URL
-      // This runs on Vercel — browser never touches Supabase directly
-      // Fixes DNS blocking issues on certain ISPs/networks
       const isLocal = window.location.hostname === 'localhost'
       const res = await fetch('/api/google-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isLocal }),
       })
-
       const data = await res.json()
       clearTimeout(timeout)
-
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to get Google sign in URL')
-      }
-
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to get Google sign in URL')
       if (data.url) {
-        // Redirect to Google — comes back to /auth/callback
         window.location.href = data.url
       } else {
         throw new Error('No sign in URL returned. Please try again.')
@@ -89,7 +99,11 @@ export default function LoginPage() {
     if (!validateEmail(email)) { setError('Please enter a valid email address'); return }
     setLoading(true)
     try {
-      const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+      const res = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setStep('otp'); setResendTimer(60); setSuccess(`Code sent to ${email}`)
@@ -103,7 +117,11 @@ export default function LoginPage() {
     if (otpString.length !== 6) { setError('Please enter the complete 6-digit code'); return }
     setLoading(true)
     try {
-      const res = await fetch('/api/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, otp: otpString, action: 'verify' }) })
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpString, action: 'verify' })
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setStep('password'); setSuccess('')
@@ -121,17 +139,26 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const otpString = otp.join('')
-      const res = await fetch('/api/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, otp: otpString, password, name, action: 'create' }) })
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpString, password, name, action: 'create' })
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      const signInRes = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'signin', email, password }) })
+      const signInRes = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'signin', email, password })
+      })
       const signInData = await signInRes.json()
 
       if (signInData.user) {
-        localStorage.setItem('sb_user', JSON.stringify(signInData.user))
-        localStorage.setItem('sb_session', JSON.stringify(signInData.session || { access_token: `local_${signInData.user.id}` }))
-        router.push('/')
+        saveSessionAndRedirect(
+          signInData.user,
+          signInData.session || { access_token: `local_${signInData.user.id}` }
+        )
       } else {
         setMode('signin'); setStep('signin')
         setError('Account created! Please sign in.')
@@ -146,15 +173,18 @@ export default function LoginPage() {
     if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true)
     try {
-      const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'signin', email, password }) })
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'signin', email, password })
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       if (data.user) {
-        localStorage.setItem('sb_user', JSON.stringify(data.user))
-        // Use real session if available, otherwise local fallback
-        const sessionToStore = data.session || { access_token: `local_${data.user.id}`, user: data.user }
-        localStorage.setItem('sb_session', JSON.stringify(sessionToStore))
-        router.push('/')
+        saveSessionAndRedirect(
+          data.user,
+          data.session || { access_token: `local_${data.user.id}` }
+        )
       } else {
         throw new Error(data.error || 'Sign in failed. Please try again.')
       }
@@ -187,7 +217,6 @@ export default function LoginPage() {
     setError(''); setSuccess(''); setOtp(['','','','','','']); setEmail(''); setPassword(''); setName('')
   }
 
-  // Google button (shared)
   const GoogleBtn = () => (
     <button onClick={handleGoogleLogin} disabled={googleLoading}
       className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-60 py-3.5 rounded-2xl font-semibold transition-all text-sm shadow-sm">
@@ -211,15 +240,15 @@ export default function LoginPage() {
         <div className="absolute inset-0" style={{backgroundImage:'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.02) 1px, transparent 0)', backgroundSize:'32px 32px'}} />
       </div>
 
-      <div className="relative z-10 w-full max-w-[420px]">
-        <Link href="/" className="flex items-center justify-center gap-2.5 mb-10 group">
+      <div className="relative z-10 w-full max-w-[420px] py-8">
+        <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
           <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:scale-105 transition-transform">
             <Youtube size={20} />
           </div>
           <span className="font-black text-2xl tracking-tight">CommentPull</span>
         </Link>
 
-        <div className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
+        <div className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl">
 
           {/* SIGNUP: EMAIL */}
           {mode === 'signup' && step === 'email' && (
@@ -272,11 +301,11 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-black tracking-tight mb-2">Check your email</h1>
                 <p className="text-white/40 text-sm">6-digit code sent to <span className="text-white font-semibold">{email}</span></p>
               </div>
-              <div className="flex gap-2.5 justify-center mb-5">
+              <div className="flex gap-2 sm:gap-2.5 justify-center mb-5">
                 {otp.map((digit, i) => (
                   <input key={i} ref={el => { otpRefs.current[i] = el }} type="text" inputMode="numeric" maxLength={6} value={digit}
                     onChange={e => handleOtpChange(i, e.target.value)} onKeyDown={e => handleOtpKeyDown(i, e)} onFocus={e => e.target.select()}
-                    className={`w-12 h-14 text-center text-xl font-black bg-white/5 border-2 rounded-2xl text-white focus:outline-none transition-all ${digit ? 'border-red-500/60 bg-red-500/5' : 'border-white/10 focus:border-red-500/40'}`} />
+                    className={`w-11 sm:w-12 h-13 sm:h-14 text-center text-xl font-black bg-white/5 border-2 rounded-2xl text-white focus:outline-none transition-all ${digit ? 'border-red-500/60 bg-red-500/5' : 'border-white/10 focus:border-red-500/40'}`} />
                 ))}
               </div>
               {success && <OkBox msg={success} />}
