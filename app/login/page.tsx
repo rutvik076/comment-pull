@@ -47,45 +47,35 @@ export default function LoginPage() {
     setGoogleLoading(true)
     setError('')
 
-    // Safety: always reset after 8 seconds if something hangs
+    // Safety timeout
     const timeout = setTimeout(() => {
       setGoogleLoading(false)
       setError('Google sign in timed out. Please try again.')
-    }, 8000)
+    }, 10000)
 
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('App configuration missing. Please contact support.')
-      }
-
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(supabaseUrl, supabaseKey)
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: typeof window !== 'undefined' && window.location.hostname === 'localhost'
-            ? 'http://localhost:3000/auth/callback'
-            : 'https://comment-pull-rfot.vercel.app/auth/callback',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
+      // Call OUR server to generate the Google OAuth URL
+      // This runs on Vercel — browser never touches Supabase directly
+      // Fixes DNS blocking issues on certain ISPs/networks
+      const isLocal = window.location.hostname === 'localhost'
+      const res = await fetch('/api/google-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isLocal }),
       })
 
+      const data = await res.json()
       clearTimeout(timeout)
 
-      if (error) throw error
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to get Google sign in URL')
+      }
 
-      if (data?.url) {
+      if (data.url) {
+        // Redirect to Google — comes back to /auth/callback
         window.location.href = data.url
-        // Keep loading state — page is navigating away
       } else {
-        throw new Error('Google sign in unavailable. Check Supabase Google provider is enabled.')
+        throw new Error('No sign in URL returned. Please try again.')
       }
     } catch (e: any) {
       clearTimeout(timeout)
