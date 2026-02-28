@@ -67,7 +67,9 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'https://comment-pull-rfot.vercel.app/auth/callback',
+          redirectTo: typeof window !== 'undefined' && window.location.hostname === 'localhost'
+            ? 'http://localhost:3000/auth/callback'
+            : 'https://comment-pull-rfot.vercel.app/auth/callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',

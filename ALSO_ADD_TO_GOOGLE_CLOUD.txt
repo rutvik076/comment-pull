@@ -1,0 +1,4 @@
+Add this to Google Cloud Console → Credentials → commentpull → Authorized redirect URIs:
+
+http://localhost:3000/auth/callback   ← for local development
+https://comment-pull-rfot.vercel.app/auth/callback  ← already there
