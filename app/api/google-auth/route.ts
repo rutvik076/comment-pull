@@ -1,43 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
-// Runs on VERCEL SERVER — generates the Google OAuth URL
-// Browser never touches Supabase directly
 export async function POST(request: NextRequest) {
   try {
-    const appUrl = 'https://comment-pull-rfot.vercel.app'
     const { isLocal } = await request.json().catch(() => ({ isLocal: false }))
-    const redirectTo = isLocal ? 'http://localhost:3000/auth/callback' : `${appUrl}/auth/callback`
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: {
-          flowType: 'implicit', // No PKCE — server doesn't have localStorage for verifier
-        }
-      }
-    )
+    const CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+    if (!CLIENT_ID) {
+      return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured' }, { status: 500 })
+    }
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        skipBrowserRedirect: true, // Don't redirect — just return the URL
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-        scopes: 'email profile',
-      },
+    const redirectUri = isLocal
+      ? 'http://localhost:3000/auth/callback'
+      : 'https://comment-pull-rfot.vercel.app/auth/callback'
+
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'consent',
     })
 
-    if (error) throw error
-    if (!data?.url) throw new Error('No OAuth URL returned from Supabase')
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+    return NextResponse.json({ url })
 
-    return NextResponse.json({ url: data.url })
   } catch (e: any) {
-    console.error('Google auth error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
