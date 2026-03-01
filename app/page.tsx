@@ -55,7 +55,7 @@ function UpgradeModal({ onClose, user }: { onClose: () => void; user: any }) {
         key: data.keyId,
         subscription_id: data.subscriptionId,
         name: 'CommentPull Premium',
-        description: '₹299/month · Cancel anytime',
+        description: '₹149/month · Cancel anytime',
         prefill: { email: user.email },
         theme: { color: '#dc2626' },
         handler: (response: any) => {
@@ -77,7 +77,7 @@ function UpgradeModal({ onClose, user }: { onClose: () => void; user: any }) {
           </div>
           <div>
             <h2 className="font-black text-lg tracking-tight">Upgrade to Premium</h2>
-            <p className="text-white/40 text-sm">₹299/month · Cancel anytime</p>
+            <p className="text-white/40 text-sm">₹149/month · Cancel anytime</p>
           </div>
         </div>
         <div className="space-y-2 mb-6">
@@ -99,7 +99,7 @@ function UpgradeModal({ onClose, user }: { onClose: () => void; user: any }) {
           <button onClick={handlePayment} disabled={loading}
             className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-50 text-white py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
             {loading ? <Loader2 size={18} className="animate-spin" /> : <Crown size={18} />}
-            {loading ? 'Opening payment...' : 'Upgrade Now — ₹299/mo'}
+            {loading ? 'Opening payment...' : 'Upgrade Now — ₹149/mo'}
           </button>
         ) : (
           <Link href="/login" onClick={onClose}
@@ -472,7 +472,7 @@ export default function Home() {
                       <p className="font-bold text-xl mb-2">Daily limit reached</p>
                       <p className="text-white/50 text-sm mb-5">Upgrade for unlimited downloads.</p>
                       <button onClick={() => setShowUpgrade(true)} className="bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold px-7 py-3 rounded-xl inline-flex items-center gap-2">
-                        <Crown size={16} />Unlock — ₹299/mo
+                        <Crown size={16} />Unlock — ₹149/mo
                       </button>
                     </div>
                   </div>
@@ -549,7 +549,7 @@ export default function Home() {
                 <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">POPULAR</div>
                 <div className="text-2xl font-black mb-1">Premium</div>
                 <div className="text-white/40 text-sm mb-4">Cancel anytime</div>
-                <div className="text-4xl font-black mb-1">₹299</div>
+                <div className="text-4xl font-black mb-1">₹149</div>
                 <div className="text-white/30 text-sm mb-6">per month · UPI · Cards · NetBanking</div>
                 <ul className="space-y-3 text-sm text-white/80 mb-7">
                   {['Unlimited downloads/day', '10,000 comments/video', 'Download history', 'API access', 'Priority support'].map(f => (
@@ -560,7 +560,7 @@ export default function Home() {
                 </ul>
                 <button onClick={() => setShowUpgrade(true)}
                   className="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 text-sm">
-                  <Crown size={16} />Upgrade Now — ₹299/month
+                  <Crown size={16} />Upgrade Now — ₹149/month
                 </button>
               </div>
             </div>

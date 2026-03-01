@@ -119,7 +119,7 @@ function ApiKeyManager({ user, isPremium }: { user: any; isPremium: boolean }) {
         <Crown className="text-amber-400" size={26} />
       </div>
       <h3 className="font-black text-lg mb-2">Premium Required</h3>
-      <p className="text-white/40 text-sm mb-5">API access is available on the Premium plan (₹299/month)</p>
+      <p className="text-white/40 text-sm mb-5">API access is available on the Premium plan (₹149/month)</p>
       <Link href="/#pricing" className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold px-6 py-3 rounded-xl transition-all hover:from-amber-400 hover:to-orange-400">
         <Crown size={15} />Upgrade to Premium
       </Link>

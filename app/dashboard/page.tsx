@@ -362,7 +362,7 @@ export default function Dashboard() {
                 {!isPremium && (
                   <button onClick={() => router.push('/#pricing')}
                     className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2">
-                    <Crown size={15} />Upgrade — ₹299/mo
+                    <Crown size={15} />Upgrade — ₹149/mo
                   </button>
                 )}
 
@@ -400,7 +400,7 @@ export default function Dashboard() {
                             : <span className="text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">Active</span>
                           }
                         </div>
-                        <p className="text-white/40 text-sm">₹299/month</p>
+                        <p className="text-white/40 text-sm">₹149/month</p>
                       </div>
                     </div>
                   </div>
@@ -409,7 +409,7 @@ export default function Dashboard() {
                     {[
                       { icon: <Calendar size={14} className="text-white/40" />, label: isCancelled ? 'Access Until' : 'Next Renewal', value: fmt(premiumInfo.renewalDate) },
                       { icon: <CheckCircle size={14} className="text-green-400" />, label: 'Activated On', value: fmt(premiumInfo.activatedAt) },
-                      { icon: <CreditCard size={14} className="text-white/40" />, label: 'Amount', value: '₹299 / month' },
+                      { icon: <CreditCard size={14} className="text-white/40" />, label: 'Amount', value: '₹149 / month' },
                       { icon: <Shield size={14} className="text-white/40" />, label: 'Payment', value: 'Razorpay' },
                     ].map((item, i) => (
                       <div key={i} className="bg-black/20 rounded-xl p-3">
@@ -515,7 +515,7 @@ export default function Dashboard() {
                 <p className="text-white/40 mb-8">You're on the Free plan. Upgrade to Premium to unlock unlimited downloads, 10,000 comments/video, and API access.</p>
                 <button onClick={() => router.push('/#pricing')}
                   className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold px-8 py-4 rounded-2xl transition-all flex items-center gap-2 mx-auto">
-                  <Crown size={18} />Upgrade to Premium — ₹299/mo
+                  <Crown size={18} />Upgrade to Premium — ₹149/mo
                 </button>
               </div>
             )}

@@ -93,7 +93,7 @@ export default function Article1() {
                   <th className="text-center px-4 py-3 text-white/60 font-semibold">Premium</th>
                 </tr></thead>
                 <tbody className="divide-y divide-white/5">
-                  {[['Downloads/day','5','Unlimited'],['Comments/video','100','10,000'],['CSV export','✅','✅'],['API access','❌','✅'],['Price','Free','₹299/mo']].map(([f,fr,pr],i)=>(
+                  {[['Downloads/day','5','Unlimited'],['Comments/video','100','10,000'],['CSV export','✅','✅'],['API access','❌','✅'],['Price','Free','₹149/mo']].map(([f,fr,pr],i)=>(
                     <tr key={i}><td className="px-4 py-3 text-white/70">{f}</td><td className="px-4 py-3 text-center text-white/50">{fr}</td><td className="px-4 py-3 text-center text-green-400 font-medium">{pr}</td></tr>
                   ))}
                 </tbody>

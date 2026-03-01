@@ -119,7 +119,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-lg font-bold text-white mb-3">8. Subscription & Payment</h2>
-            <p>Premium subscriptions are billed monthly at <strong className="text-white/80">₹299/month</strong>. Payment is processed securely by Razorpay. Our services can be purchased online via UPI, debit/credit cards, or NetBanking. The delivery of Premium access is activated immediately once payment is processed, and you will be notified by email.</p>
+            <p>Premium subscriptions are billed monthly at <strong className="text-white/80">₹149/month</strong>. Payment is processed securely by Razorpay. Our services can be purchased online via UPI, debit/credit cards, or NetBanking. The delivery of Premium access is activated immediately once payment is processed, and you will be notified by email.</p>
           </section>
 
           <section>

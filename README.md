@@ -29,7 +29,7 @@
 - [x] Separate verify + create account actions (OTP double-use bug fixed)
 
 ### 💳 Payments
-- [x] Razorpay integration — ₹299/month subscription
+- [x] Razorpay integration — ₹149/month subscription
 - [x] 2-step checkout: Create account → Pay
 - [x] Razorpay webhook → activates premium in Supabase
 - [x] Premium badge in navbar (gold crown)
@@ -57,7 +57,7 @@
 - [x] Test keys added and working (rzp_test_...)
 - [ ] ⏳ Waiting for Razorpay individual account approval (1-2 days)
 - [ ] Switch env vars to live keys once approved
-- [ ] Test real ₹299 payment end-to-end
+- [ ] Test real ₹149 payment end-to-end
 
 ### Resend Email Domain
 - [x] Resend account created, OTP emails sending
@@ -199,7 +199,7 @@ So I built one over the weekend:
 → Paste any YouTube URL
 → Get all comments as CSV instantly  
 → Completely free (3 downloads/day, no account needed)
-→ Premium tier for researchers who need more (₹299/month)
+→ Premium tier for researchers who need more (₹149/month)
 
 Would love honest feedback from this community!
 
