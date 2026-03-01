@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Background rounded square -->
+  <rect width="200" height="200" rx="40" fill="#DC2626"/>
+  
+  <!-- YouTube-style play triangle shape (speech bubble base) -->
+  <rect x="38" y="52" width="124" height="76" rx="14" fill="white"/>
+  
+  <!-- Speech bubble tail -->
+  <path d="M60 128 L48 155 L88 128Z" fill="white"/>
+  
+  <!-- Download arrow inside bubble -->
+  <path d="M100 72 L100 104" stroke="#DC2626" stroke-width="10" stroke-linecap="round"/>
+  <path d="M82 92 L100 112 L118 92" stroke="#DC2626" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M78 116 L122 116" stroke="#DC2626" stroke-width="8" stroke-linecap="round"/>
+</svg>

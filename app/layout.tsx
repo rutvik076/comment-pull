@@ -1,28 +1,44 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 
+const inter = Inter({ subsets: ['latin'] })
+
 export const metadata: Metadata = {
-  title: 'CommentPull — Free YouTube Comments Downloader',
-  description: 'Download YouTube video comments as CSV instantly. Free tool for creators, researchers, and marketers. Export author, text, likes, date and more.',
-  keywords: 'youtube comments downloader, export youtube comments, youtube comments csv, download youtube comments free',
+  title: 'CommentPull — Free YouTube Comment Downloader',
+  description: 'Download YouTube comments instantly as CSV. Perfect for research, sentiment analysis, and content strategy. Free plan includes 5 downloads/day.',
+  keywords: ['youtube comments', 'download youtube comments', 'comment analyzer', 'CSV export', 'youtube data'],
+  authors: [{ name: 'Crestlabs' }],
+  creator: 'Crestlabs',
+  metadataBase: new URL('https://commentpull.com'),
   openGraph: {
-    title: 'CommentPull — Free YouTube Comments Downloader',
-    description: 'Download YouTube video comments as CSV instantly.',
+    title: 'CommentPull — Free YouTube Comment Downloader',
+    description: 'Download YouTube comments instantly as CSV. Free plan, no credit card.',
+    url: 'https://commentpull.com',
+    siteName: 'CommentPull',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'CommentPull' }],
     type: 'website',
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CommentPull — Free YouTube Comment Downloader',
+    description: 'Download YouTube comments instantly as CSV.',
+    images: ['/og-image.png'],
+  },
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  manifest: '/manifest.json',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-        {/* Google AdSense — add your publisher ID below */}
-        {/* <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossOrigin="anonymous"></script> */}
-      </head>
-      <body style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{children}</body>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }

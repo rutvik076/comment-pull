@@ -1,0 +1,14 @@
+{
+  "name": "CommentPull",
+  "short_name": "CommentPull",
+  "description": "Download YouTube comments instantly as CSV",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#DC2626",
+  "icons": [
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
