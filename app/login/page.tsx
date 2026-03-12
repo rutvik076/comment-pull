@@ -1,23 +1,20 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Youtube, Mail, Lock, Loader2, AlertCircle, CheckCircle, Eye, EyeOff, ArrowLeft, Shield, Sparkles } from 'lucide-react'
+import { Youtube, Mail, Loader2, AlertCircle, CheckCircle, ArrowLeft, Shield } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-type Step = 'email' | 'otp' | 'password' | 'signin'
+type Step = 'email' | 'otp'
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [mode, setMode] = useState<'signup' | 'signin'>('signup')
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
@@ -33,7 +30,6 @@ export default function LoginPage() {
   }, [resendTimer])
 
   useEffect(() => {
-    // If already logged in with valid session, redirect away
     try {
       const userStr = localStorage.getItem('sb_user')
       const sessionStr = localStorage.getItem('sb_session')
@@ -41,16 +37,14 @@ export default function LoginPage() {
         const u = JSON.parse(userStr)
         const s = JSON.parse(sessionStr)
         if (u?.id && s?.access_token) {
-          // Valid session — go back to where they came from
           const returnTo = sessionStorage.getItem('returnTo') || '/'
           sessionStorage.removeItem('returnTo')
           router.replace(returnTo)
           return
         }
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* ignore */ }
 
-    // Show URL error if any (e.g. from OAuth callback)
     const urlError = searchParams.get('error')
     if (urlError) setError(decodeURIComponent(urlError))
   }, [])
@@ -82,11 +76,8 @@ export default function LoginPage() {
       const data = await res.json()
       clearTimeout(timeout)
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to get Google sign in URL')
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        throw new Error('No sign in URL returned. Please try again.')
-      }
+      if (data.url) window.location.href = data.url
+      else throw new Error('No sign in URL returned. Please try again.')
     } catch (e: any) {
       clearTimeout(timeout)
       setError(e.message || 'Failed to start Google sign in')
@@ -106,7 +97,9 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setStep('otp'); setResendTimer(60); setSuccess(`Code sent to ${email}`)
+      setStep('otp')
+      setResendTimer(60)
+      setSuccess(`Code sent to ${email}`)
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -120,75 +113,21 @@ export default function LoginPage() {
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpString, action: 'verify' })
+        body: JSON.stringify({ email, otp: otpString, name, action: 'verify' })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setStep('password'); setSuccess('')
+
+      if (data.session && data.user) {
+        saveSessionAndRedirect(data.user, data.session)
+      } else {
+        throw new Error('Verification failed. Please try again.')
+      }
     } catch (e: any) {
       setError(e.message)
       setOtp(['', '', '', '', '', ''])
       otpRefs.current[0]?.focus()
     }
-    finally { setLoading(false) }
-  }
-
-  const handleCreateAccount = async () => {
-    setError('')
-    if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return }
-    setLoading(true)
-    try {
-      const otpString = otp.join('')
-      const res = await fetch('/api/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpString, password, name, action: 'create' })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-
-      const signInRes = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'signin', email, password })
-      })
-      const signInData = await signInRes.json()
-
-      if (signInData.user) {
-        saveSessionAndRedirect(
-          signInData.user,
-          signInData.session || { access_token: `local_${signInData.user.id}` }
-        )
-      } else {
-        setMode('signin'); setStep('signin')
-        setError('Account created! Please sign in.')
-      }
-    } catch (e: any) { setError(e.message) }
-    finally { setLoading(false) }
-  }
-
-  const handleSignIn = async () => {
-    setError('')
-    if (!validateEmail(email)) { setError('Please enter a valid email'); return }
-    if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return }
-    setLoading(true)
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'signin', email, password })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      if (data.user) {
-        saveSessionAndRedirect(
-          data.user,
-          data.session || { access_token: `local_${data.user.id}` }
-        )
-      } else {
-        throw new Error(data.error || 'Sign in failed. Please try again.')
-      }
-    } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
 
@@ -211,27 +150,6 @@ export default function LoginPage() {
     if (e.key === 'Enter') handleVerifyOTP()
   }
 
-  const switchMode = () => {
-    setMode(m => m === 'signup' ? 'signin' : 'signup')
-    setStep(mode === 'signup' ? 'signin' : 'email')
-    setError(''); setSuccess(''); setOtp(['','','','','','']); setEmail(''); setPassword(''); setName('')
-  }
-
-  const GoogleBtn = () => (
-    <button onClick={handleGoogleLogin} disabled={googleLoading}
-      className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-60 py-3.5 rounded-2xl font-semibold transition-all text-sm shadow-sm">
-      {googleLoading ? <Loader2 size={16} className="animate-spin" /> : (
-        <svg width="18" height="18" viewBox="0 0 48 48">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        </svg>
-      )}
-      {googleLoading ? 'Opening Google...' : 'Continue with Google'}
-    </button>
-  )
-
   return (
     <main className="min-h-screen bg-[#080810] text-white flex items-center justify-center px-4 relative overflow-hidden">
       <div className="fixed inset-0 pointer-events-none">
@@ -250,20 +168,35 @@ export default function LoginPage() {
 
         <div className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl">
 
-          {/* SIGNUP: EMAIL */}
-          {mode === 'signup' && step === 'email' && (
+          {/* STEP 1 — EMAIL */}
+          {step === 'email' && (
             <>
               <div className="mb-6">
-                <h1 className="text-2xl font-black tracking-tight mb-1.5">Create your account</h1>
+                <h1 className="text-2xl font-black tracking-tight mb-1.5">Welcome to CommentPull</h1>
                 <p className="text-white/40 text-sm">Free plan · 5 downloads/day · No credit card</p>
               </div>
-              <GoogleBtn />
+
+              {/* Google Button */}
+              <button onClick={handleGoogleLogin} disabled={googleLoading}
+                className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-60 py-3.5 rounded-2xl font-semibold transition-all text-sm shadow-sm">
+                {googleLoading ? <Loader2 size={16} className="animate-spin" /> : (
+                  <svg width="18" height="18" viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  </svg>
+                )}
+                {googleLoading ? 'Opening Google...' : 'Continue with Google'}
+              </button>
+
               <div className="flex items-center gap-3 my-5 text-xs text-white/25">
-                <div className="flex-1 h-px bg-white/8" /><span>or sign up with email</span><div className="flex-1 h-px bg-white/8" />
+                <div className="flex-1 h-px bg-white/8" /><span>or sign in with email</span><div className="flex-1 h-px bg-white/8" />
               </div>
+
               <div className="space-y-3.5">
                 <div>
-                  <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Full Name</label>
+                  <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Full Name (optional)</label>
                   <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Rahul Sharma"
                     className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60 transition-all text-sm" />
                 </div>
@@ -271,27 +204,32 @@ export default function LoginPage() {
                   <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Email Address</label>
                   <div className="relative">
                     <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendOTP()} placeholder="you@gmail.com"
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSendOTP()} placeholder="you@gmail.com"
                       className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60 transition-all text-sm" />
                   </div>
                 </div>
               </div>
+
               {error && <ErrBox msg={error} />}
+
               <button onClick={handleSendOTP} disabled={loading}
                 className="w-full mt-5 bg-red-600 hover:bg-red-500 active:scale-[0.98] disabled:opacity-50 text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
                 {loading ? 'Sending code...' : 'Send Verification Code'}
               </button>
-              <button onClick={switchMode} className="w-full mt-4 text-sm text-white/50 hover:text-white transition-colors py-2">
-                Already have an account? <span className="text-red-400 font-semibold">Sign in</span>
-              </button>
+
+              <p className="text-center text-white/30 text-xs mt-4">
+                New or returning — we'll handle it automatically
+              </p>
             </>
           )}
 
-          {/* SIGNUP: OTP */}
-          {mode === 'signup' && step === 'otp' && (
+          {/* STEP 2 — OTP */}
+          {step === 'otp' && (
             <>
-              <button onClick={() => { setStep('email'); setError('') }} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm mb-6 transition-colors">
+              <button onClick={() => { setStep('email'); setError(''); setOtp(['','','','','','']) }}
+                className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm mb-6 transition-colors">
                 <ArrowLeft size={14} />Back
               </button>
               <div className="text-center mb-8">
@@ -301,106 +239,33 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-black tracking-tight mb-2">Check your email</h1>
                 <p className="text-white/40 text-sm">6-digit code sent to <span className="text-white font-semibold">{email}</span></p>
               </div>
+
               <div className="flex gap-2 sm:gap-2.5 justify-center mb-5">
                 {otp.map((digit, i) => (
-                  <input key={i} ref={el => { otpRefs.current[i] = el }} type="text" inputMode="numeric" maxLength={6} value={digit}
-                    onChange={e => handleOtpChange(i, e.target.value)} onKeyDown={e => handleOtpKeyDown(i, e)} onFocus={e => e.target.select()}
+                  <input key={i} ref={el => { otpRefs.current[i] = el }}
+                    type="text" inputMode="numeric" maxLength={6} value={digit}
+                    onChange={e => handleOtpChange(i, e.target.value)}
+                    onKeyDown={e => handleOtpKeyDown(i, e)}
+                    onFocus={e => e.target.select()}
                     className={`w-11 sm:w-12 h-13 sm:h-14 text-center text-xl font-black bg-white/5 border-2 rounded-2xl text-white focus:outline-none transition-all ${digit ? 'border-red-500/60 bg-red-500/5' : 'border-white/10 focus:border-red-500/40'}`} />
                 ))}
               </div>
+
               {success && <OkBox msg={success} />}
               {error && <ErrBox msg={error} />}
+
               <button onClick={handleVerifyOTP} disabled={loading || otp.join('').length !== 6}
                 className="w-full mt-3 bg-red-600 hover:bg-red-500 disabled:opacity-40 active:scale-[0.98] text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                {loading ? 'Verifying...' : 'Verify Code'}
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                {loading ? 'Verifying...' : 'Verify & Sign In'}
               </button>
+
               <div className="text-center mt-4">
                 {resendTimer > 0
                   ? <p className="text-white/30 text-sm">Resend in <span className="font-mono">{resendTimer}s</span></p>
-                  : <button onClick={handleSendOTP} className="text-red-400 text-sm font-medium">Resend code</button>}
+                  : <button onClick={handleSendOTP} className="text-red-400 text-sm font-medium hover:text-red-300 transition-colors">Resend code</button>
+                }
               </div>
-            </>
-          )}
-
-          {/* SIGNUP: PASSWORD */}
-          {mode === 'signup' && step === 'password' && (
-            <>
-              <div className="text-center mb-8">
-                <div className="w-14 h-14 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="text-green-400" size={24} />
-                </div>
-                <h1 className="text-2xl font-black tracking-tight mb-2">Email verified ✅</h1>
-                <p className="text-white/40 text-sm">Set a password to secure your account</p>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Create Password</label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
-                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCreateAccount()} placeholder="Min. 6 characters"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-12 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60 transition-all text-sm" />
-                  <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-                {password && (
-                  <div className="mt-2 flex gap-1">
-                    {[1,2,3,4].map(i => (
-                      <div key={i} className={`h-1 flex-1 rounded-full transition-all ${password.length >= i*3 ? i<=2?'bg-red-500':i===3?'bg-yellow-500':'bg-green-500' : 'bg-white/10'}`} />
-                    ))}
-                  </div>
-                )}
-              </div>
-              {error && <ErrBox msg={error} />}
-              <button onClick={handleCreateAccount} disabled={loading}
-                className="w-full mt-5 bg-red-600 hover:bg-red-500 active:scale-[0.98] disabled:opacity-50 text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {loading ? 'Creating account...' : 'Create Account & Continue'}
-              </button>
-            </>
-          )}
-
-          {/* SIGN IN */}
-          {mode === 'signin' && (
-            <>
-              <div className="mb-6">
-                <h1 className="text-2xl font-black tracking-tight mb-1.5">Welcome back</h1>
-                <p className="text-white/40 text-sm">Sign in to access your account</p>
-              </div>
-              <GoogleBtn />
-              <div className="flex items-center gap-3 my-5 text-xs text-white/25">
-                <div className="flex-1 h-px bg-white/8" /><span>or sign in with email</span><div className="flex-1 h-px bg-white/8" />
-              </div>
-              <div className="space-y-3.5">
-                <div>
-                  <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Email</label>
-                  <div className="relative">
-                    <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSignIn()} placeholder="you@gmail.com"
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60 transition-all text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Password</label>
-                  <div className="relative">
-                    <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
-                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSignIn()} placeholder="Your password"
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-12 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60 transition-all text-sm" />
-                    <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {error && <ErrBox msg={error} />}
-              <button onClick={handleSignIn} disabled={loading}
-                className="w-full mt-5 bg-red-600 hover:bg-red-500 active:scale-[0.98] disabled:opacity-50 text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-              <button onClick={switchMode} className="w-full mt-4 text-sm text-white/50 hover:text-white transition-colors py-2">
-                New to CommentPull? <span className="text-red-400 font-semibold">Create account</span>
-              </button>
             </>
           )}
         </div>
