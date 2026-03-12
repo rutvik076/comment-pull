@@ -9,10 +9,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured' }, { status: 500 })
     }
 
-    const redirectUri = isLocal
-      ? 'http://localhost:3000/auth/callback'
-      : 'https://comment-pull-rfot.vercel.app/auth/callback'
-
+    const redirectUri = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
+    : 'http://localhost:3000/auth/callback'
+    
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       redirect_uri: redirectUri,
