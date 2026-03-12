@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@supabase/supabase-js'
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const totalComments = comments.length
 
-    // Build the Gemini prompt
+    // Build the prompt
     const prompt = `You are an expert YouTube audience analyst. Analyze the following ${totalComments} YouTube comments and provide a structured JSON response.
 
 COMMENTS:
@@ -97,22 +93,39 @@ Rules:
 - All counts are approximate based on theme frequency
 - Be specific and accurate based on the actual comments provided`
 
-    // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-    const result = await model.generateContent(prompt)
-    const responseText = result.response.text()
+    // Call Groq API (free, no billing needed, works in India)
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1000,
+        temperature: 0.3,
+      }),
+    })
+
+    if (!response.ok) {
+      const errData = await response.json()
+      throw new Error(errData.error?.message || 'Groq API error')
+    }
+
+    const data = await response.json()
+    const responseText = data.choices[0].message.content
 
     // Parse JSON response safely
     let analysis
     try {
-      // Strip any accidental markdown backticks if present
       const clean = responseText
         .replace(/```json/g, '')
         .replace(/```/g, '')
         .trim()
       analysis = JSON.parse(clean)
     } catch (parseError) {
-      console.error('Failed to parse Gemini response:', responseText)
+      console.error('Failed to parse Groq response:', responseText)
       return NextResponse.json(
         { error: 'AI analysis failed. Please try again.' },
         { status: 500 }
@@ -129,10 +142,9 @@ Rules:
   } catch (error: any) {
     console.error('AI Summary error:', error)
 
-    // Handle Gemini quota exceeded
-    if (error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+    if (error.message?.includes('rate_limit') || error.message?.includes('429')) {
       return NextResponse.json(
-        { error: 'AI service is temporarily busy. Please try again in a minute.' },
+        { error: 'AI service is busy. Please try again in a moment.' },
         { status: 429 }
       )
     }
