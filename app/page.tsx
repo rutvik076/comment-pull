@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Download, Youtube, Zap, Shield, TrendingUp, ChevronRight, Loader2, AlertCircle, X, Crown, LayoutDashboard, Lock, Code2, History, CheckCircle, Menu } from 'lucide-react'
 import Link from 'next/link'
+import AISummary from '@/components/AISummary'
 
 interface Comment {
   id?: string
@@ -84,6 +85,7 @@ function UpgradeModal({ onClose, user }: { onClose: () => void; user: any }) {
           {[
             { icon: '⚡', text: 'Unlimited downloads per day' },
             { icon: '📊', text: '10,000 comments per video' },
+            { icon: '🤖', text: 'AI Comment Analysis & Insights' },
             { icon: '📂', text: 'Full download history & dashboard' },
             { icon: '🔌', text: 'API access for organizations' },
             { icon: '💳', text: 'Pay via UPI · Cards · NetBanking' },
@@ -151,7 +153,6 @@ export default function Home() {
           return
         }
       }
-      // No valid session
       setUser(null)
       setIsPremium(false)
     } catch {
@@ -248,13 +249,11 @@ export default function Home() {
         {/* ── Nav ── */}
         <nav className="border-b border-white/5 px-4 sm:px-6 py-3.5 sticky top-0 bg-[#0a0a0f]/90 backdrop-blur-xl z-40">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
-            {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center"><Youtube size={16} /></div>
               <span className="font-bold text-base sm:text-lg tracking-tight">CommentPull</span>
             </Link>
 
-            {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-3 text-sm">
               <a href="#features" className="text-white/50 hover:text-white transition-colors">Features</a>
               <a href="#pricing" className="text-white/50 hover:text-white transition-colors">Pricing</a>
@@ -280,7 +279,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Mobile nav */}
             <div className="flex md:hidden items-center gap-2">
               {!user && (
                 <Link href="/login" className="border border-white/20 text-white px-3 py-1.5 rounded-lg font-medium text-xs">Sign In</Link>
@@ -296,7 +294,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Mobile dropdown */}
           {menuOpen && (
             <div className="md:hidden mt-3 pb-3 border-t border-white/5 pt-3 flex flex-col gap-2 px-1">
               <a href="#features" onClick={() => setMenuOpen(false)} className="text-white/60 hover:text-white py-2 text-sm px-2">Features</a>
@@ -331,7 +328,6 @@ export default function Home() {
               Paste any YouTube URL and export all comments as CSV in seconds. Perfect for research, sentiment analysis, and content strategy.
             </p>
 
-            {/* Input card */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 backdrop-blur-sm max-w-2xl mx-auto mb-4">
               <div className="flex flex-col sm:flex-row gap-3">
                 <input type="text" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleFetch()}
@@ -414,9 +410,17 @@ export default function Home() {
                 )}
               </div>
 
+              {/* ── AI Summary — appears above comments table ── */}
+              <AISummary
+                comments={comments}
+                videoId={videoId}
+                userId={user?.id || null}
+                isPremium={isPremium}
+                onUpgradeClick={() => setShowUpgrade(true)}
+              />
+
               <div className="relative">
                 <div className={`bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all ${!isPremium && downloadsRemaining <= 0 ? 'blur-sm pointer-events-none select-none' : ''}`}>
-                  {/* Desktop header */}
                   <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 text-xs text-white/40 uppercase tracking-wider border-b border-white/5 font-medium">
                     <div className="col-span-3">Author</div>
                     <div className="col-span-6">Comment</div>
@@ -426,7 +430,6 @@ export default function Home() {
                   <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto">
                     {comments.map((c, i) => (
                       <div key={i}>
-                        {/* Desktop row */}
                         <div className={`hidden sm:grid grid-cols-12 gap-4 px-5 py-4 hover:bg-white/3 transition-colors text-sm ${c.isReply ? 'bg-white/[0.015] pl-8' : ''}`}>
                           <div className="col-span-3 font-medium text-white/80 truncate">
                             {c.isReply && <span className="text-white/25 text-xs mr-1">↳</span>}{c.author}
@@ -437,7 +440,6 @@ export default function Home() {
                             {new Date(c.publishedAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' })}
                           </div>
                         </div>
-                        {/* Mobile card */}
                         <div className={`sm:hidden px-4 py-3.5 hover:bg-white/3 transition-colors ${c.isReply ? 'bg-white/[0.015] border-l-2 border-l-white/10 pl-5' : ''}`}>
                           <div className="flex items-center justify-between mb-1.5 gap-2">
                             <span className="font-semibold text-white/80 text-sm truncate">
@@ -504,7 +506,7 @@ export default function Home() {
                 { icon: <Zap className="text-yellow-400" size={20} />, title: 'Blazing Fast', desc: 'Fetch 100 comments in under 3 seconds using YouTube Data API v3.' },
                 { icon: <Download className="text-green-400" size={20} />, title: 'CSV Export', desc: 'Download author, comment text, likes, date and reply count in clean spreadsheet format.' },
                 { icon: <Shield className="text-blue-400" size={20} />, title: 'Secure & Private', desc: 'No comments stored on our servers. All data goes directly to your browser.' },
-                { icon: <TrendingUp className="text-purple-400" size={20} />, title: 'Sentiment Ready', desc: 'Export structured data ready for Excel, Google Sheets, or Python analysis.' },
+                { icon: <TrendingUp className="text-purple-400" size={20} />, title: 'AI Analysis', desc: 'Get instant sentiment scores, top themes, audience questions and video ideas powered by AI.' },
                 { icon: <History className="text-pink-400" size={20} />, title: 'Download History', desc: 'Track all your past downloads from your personal dashboard. Available on all plans.' },
                 { icon: <Code2 className="text-cyan-400" size={20} />, title: 'API Access', desc: 'Premium users get full REST API access to integrate CommentPull into their own systems.' },
               ].map((f, i) => (
@@ -534,7 +536,7 @@ export default function Home() {
                       <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-xs shrink-0">✓</div>{f}
                     </li>
                   ))}
-                  {['Unlimited downloads', '10,000 comments/video', 'API access'].map(f => (
+                  {['Unlimited downloads', '10,000 comments/video', 'AI Analysis', 'API access'].map(f => (
                     <li key={f} className="flex items-center gap-2 text-white/25">
                       <Lock size={12} className="shrink-0 ml-1" /><span className="line-through">{f}</span>
                     </li>
@@ -552,7 +554,7 @@ export default function Home() {
                 <div className="text-4xl font-black mb-1">₹149</div>
                 <div className="text-white/30 text-sm mb-6">per month · UPI · Cards · NetBanking</div>
                 <ul className="space-y-3 text-sm text-white/80 mb-7">
-                  {['Unlimited downloads/day', '10,000 comments/video', 'Download history', 'API access', 'Priority support'].map(f => (
+                  {['Unlimited downloads/day', '10,000 comments/video', 'AI Comment Analysis', 'Download history', 'API access', 'Priority support'].map(f => (
                     <li key={f} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-red-500/30 flex items-center justify-center text-xs text-red-400 shrink-0">✓</div>{f}
                     </li>
