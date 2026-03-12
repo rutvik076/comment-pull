@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
       email,
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: undefined,
       },
     })
 
