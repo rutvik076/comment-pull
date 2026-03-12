@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
 
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID
   const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
-  const redirectUri = isLocal
-    ? 'http://localhost:3000/auth/callback'
-    : 'https://comment-pull-rfot.vercel.app/auth/callback'
+  const redirectUri = process.env.NEXT_PUBLIC_APP_URL
+  ? `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
+  : 'http://localhost:3000/auth/callback'
 
   if (!CLIENT_ID || !CLIENT_SECRET) {
     return NextResponse.json({ error: 'Google credentials not configured' }, { status: 500 })
