@@ -1,12 +1,13 @@
 # CommentPull
 
-> Download any YouTube video's comments as CSV instantly — free tool for creators, researchers, and marketers.
+> Download YouTube comments as CSV — then let AI analyze your audience instantly.
 
 ![Status](https://img.shields.io/badge/Status-Live-green)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Vercel](https://img.shields.io/badge/Deployed-Vercel-black)
 ![Razorpay](https://img.shields.io/badge/Payments-Razorpay-blue)
+![AI](https://img.shields.io/badge/AI-Llama%203.3%2070B-purple)
 
 **Live:** https://comment-pull-rfot.vercel.app
 
@@ -14,19 +15,41 @@
 
 ## What It Does
 
-CommentPull lets you paste any YouTube URL and export all comments as a CSV file in seconds. No API key needed, no setup required, works for any public YouTube video.
+CommentPull lets you paste any YouTube URL and:
+
+1. **Export all comments as CSV** in seconds — author, text, likes, date, replies
+2. **Run AI analysis** — get sentiment score, top themes, audience questions, and next video ideas powered by Llama 3.3 70B via Groq
+
+No API key needed. No setup required. Works for any public YouTube video.
 
 - **Free plan** — 5 downloads/day · 100 comments/video
-- **Premium plan** — Unlimited downloads · 10,000 comments/video · API access · ₹149/month
+- **Premium plan** — Unlimited downloads · 10,000 comments/video · AI Analysis · API access · ₹149/month
+
+---
+
+## ✨ AI Comment Analysis (Premium)
+
+After fetching comments, Premium users get a full audience intelligence report:
+
+| Feature               | What it tells you                                        |
+| --------------------- | -------------------------------------------------------- |
+| 🎯 Sentiment Score    | How positive/neutral/negative your audience is (0–10)    |
+| 💬 Top Themes         | What topics come up most in comments                     |
+| ❓ Audience Questions | Real questions your viewers are asking                   |
+| 💡 Video Ideas        | Next video suggestions based on what your audience wants |
+| 🔥 Top Comment        | The most impactful comment on the video                  |
+
+Powered by **Llama 3.3 70B via Groq** — analyzes up to 300 comments per video in under 10 seconds.
 
 ---
 
 ## Features
 
 - 🚀 **Instant export** — fetch and download comments in under 5 seconds
+- ✨ **AI Analysis** — full sentiment + themes + questions + video ideas
 - 📊 **Rich CSV** — author, comment text, likes, publish date, reply count, comment type
 - 🔁 **Include replies** — optionally fetch replies to top-level comments
-- 🔐 **Google OAuth + Email OTP** — flexible authentication
+- 🔐 **Google OAuth + Email OTP** — flexible authentication via Supabase
 - 💳 **Razorpay payments** — UPI, cards, netbanking, wallets all supported
 - 📈 **Dashboard** — full download history and usage tracking
 - 🔌 **REST API** — Premium users get programmatic API access
@@ -36,16 +59,16 @@ CommentPull lets you paste any YouTube URL and export all comments as a CSV file
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
-| Backend | Next.js API Routes (serverless) |
-| Database | Supabase (PostgreSQL) |
-| Auth | Supabase Auth + Google OAuth + Email OTP |
-| Payments | Razorpay (subscriptions + webhooks) |
-| Hosting | Vercel |
-| Data Source | YouTube Data API v3 |
-| Analytics | Vercel Analytics |
+| Layer       | Technology                                        |
+| ----------- | ------------------------------------------------- |
+| Frontend    | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend     | Next.js API Routes (serverless)                   |
+| Database    | Supabase (PostgreSQL)                             |
+| Auth        | Supabase Auth + Google OAuth + Email OTP          |
+| Payments    | Razorpay (subscriptions + webhooks)               |
+| Hosting     | Vercel                                            |
+| Data Source | YouTube Data API v3                               |
+| Analytics   | Vercel Analytics                                  |
 
 ---
 
@@ -253,6 +276,7 @@ Authorization: Bearer your_api_key
 ```
 
 **Response:**
+
 ```json
 {
   "comments": [
@@ -274,32 +298,42 @@ Authorization: Bearer your_api_key
 
 ## Plans
 
-| Feature | Free | Premium |
-|---------|------|---------|
-| Downloads per day | 5 | Unlimited |
-| Comments per video | 100 | 10,000 |
-| CSV export | ✅ | ✅ |
-| Include replies | ✅ | ✅ |
-| Download history | ✅ | ✅ |
-| REST API access | ❌ | ✅ |
-| Price | Free | ₹149/month |
+| Feature            | Free | Premium    |
+| ------------------ | ---- | ---------- |
+| Downloads per day  | 5    | Unlimited  |
+| Comments per video | 100  | 10,000     |
+| CSV export         | ✅   | ✅         |
+| Include replies    | ✅   | ✅         |
+| Download history   | ✅   | ✅         |
+| REST API access    | ❌   | ✅         |
+| Price              | Free | ₹149/month |
 
 ---
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
-| `YOUTUBE_API_KEY` | YouTube Data API v3 key |
-| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret |
-| `RAZORPAY_KEY_ID` | Razorpay key ID (`rzp_live_...`) |
-| `RAZORPAY_KEY_SECRET` | Razorpay key secret |
-| `RAZORPAY_PLAN_ID` | Razorpay subscription plan ID |
-| `RAZORPAY_WEBHOOK_SECRET` | Webhook signature verification secret |
-| `NEXT_PUBLIC_APP_URL` | Public URL of the deployed app |
+| Variable                        | Description                             |
+| ------------------------------- | --------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous/public key           |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase service role key (server only) |
+| `YOUTUBE_API_KEY`               | YouTube Data API v3 key                 |
+| `GOOGLE_CLIENT_ID`              | Google OAuth 2.0 client ID              |
+| `GOOGLE_CLIENT_SECRET`          | Google OAuth 2.0 client secret          |
+| `RAZORPAY_KEY_ID`               | Razorpay key ID (`rzp_live_...`)        |
+| `RAZORPAY_KEY_SECRET`           | Razorpay key secret                     |
+| `RAZORPAY_PLAN_ID`              | Razorpay subscription plan ID           |
+| `RAZORPAY_WEBHOOK_SECRET`       | Webhook signature verification secret   |
+| `NEXT_PUBLIC_APP_URL`           | Public URL of the deployed app          |
 
 ---
+
+## Built By
+
+**Crestlabs** · [hello@crestlabs.in](mailto:hello@crestlabs.in)
+
+---
+
+## License
+
+Private — All rights reserved. Not open source.

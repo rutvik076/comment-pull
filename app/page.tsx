@@ -242,7 +242,7 @@ export default function Home() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-red-600/10 blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-red-800/8 blur-[100px]" />
-        <div className="absolute inset-0" style={{backgroundImage:'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.03) 1px,transparent 0)',backgroundSize:'40px 40px'}} />
+        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.03) 1px,transparent 0)', backgroundSize: '40px 40px' }} />
       </div>
 
       <div className="relative z-10">
@@ -318,15 +318,30 @@ export default function Home() {
         <section className="px-4 sm:px-6 pt-10 sm:pt-16 md:pt-20 pb-8 sm:pb-12 text-center">
           <div className="max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold px-3 sm:px-4 py-2 rounded-full mb-6 sm:mb-8">
-              <Zap size={12} />Sign up free · 5 downloads/day · No credit card
+              <Zap size={12} />New · AI Comment Analysis is here ✨
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight leading-[1.05] mb-4 sm:mb-6">
-              Download YouTube<br />
-              <span className="text-red-500">Comments Instantly</span>
+              Download & Understand<br />
+              <span className="text-red-500">Your YouTube Audience</span>
             </h1>
-            <p className="text-white/50 text-base sm:text-lg mb-8 sm:mb-12 max-w-xl mx-auto leading-relaxed">
-              Paste any YouTube URL and export all comments as CSV in seconds. Perfect for research, sentiment analysis, and content strategy.
+            <p className="text-white/50 text-base sm:text-lg mb-6 max-w-xl mx-auto leading-relaxed">
+              Fetch all YouTube comments as CSV in seconds — then let AI analyze sentiment, extract themes, surface questions, and suggest your next video idea.
             </p>
+
+            {/* AI Feature Highlight Strip */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8 sm:mb-12">
+              {[
+                { emoji: '🎯', label: 'Sentiment Score' },
+                { emoji: '💬', label: 'Top Themes' },
+                { emoji: '❓', label: 'Audience Questions' },
+                { emoji: '💡', label: 'Video Ideas' },
+                { emoji: '📊', label: 'CSV Export' },
+              ].map(f => (
+                <span key={f.label} className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/60 text-xs font-medium px-3 py-1.5 rounded-full">
+                  {f.emoji} {f.label}
+                </span>
+              ))}
+            </div>
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 backdrop-blur-sm max-w-2xl mx-auto mb-4">
               <div className="flex flex-col sm:flex-row gap-3">
@@ -344,7 +359,7 @@ export default function Home() {
                   <div className="relative">
                     <input type="checkbox" checked={includeReplies} onChange={e => setIncludeReplies(e.target.checked)} className="sr-only" />
                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${includeReplies ? 'bg-red-600 border-red-600' : 'bg-transparent border-white/20'}`}>
-                      {includeReplies && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      {includeReplies && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                     </div>
                   </div>
                   <span className="text-sm text-white/60">Include replies</span>
@@ -365,7 +380,7 @@ export default function Home() {
             {user && !isPremium && (
               <div className="flex items-center justify-center gap-2 text-sm">
                 <div className="flex gap-1">
-                  {[1,2,3,4,5].map(i => (
+                  {[1, 2, 3, 4, 5].map(i => (
                     <div key={i} className={`w-2.5 h-2.5 rounded-full transition-all ${i <= downloadsToday ? 'bg-red-500' : 'bg-white/15'}`} />
                   ))}
                 </div>
@@ -400,7 +415,7 @@ export default function Home() {
                     </button>
                     {!isPremium && (
                       <div className="flex items-center gap-1.5">
-                        <div className="flex gap-1">{[1,2,3,4,5].map(i => <div key={i} className={`w-2 h-2 rounded-full ${i <= downloadsToday ? 'bg-red-500' : 'bg-white/20'}`} />)}</div>
+                        <div className="flex gap-1">{[1, 2, 3, 4, 5].map(i => <div key={i} className={`w-2 h-2 rounded-full ${i <= downloadsToday ? 'bg-red-500' : 'bg-white/20'}`} />)}</div>
                         <span className={`text-xs font-medium ${downloadsRemaining <= 1 ? 'text-red-400' : 'text-white/40'}`}>
                           {downloadsRemaining > 0 ? `${downloadsRemaining} left today` : 'Limit reached'}
                         </span>
@@ -437,7 +452,7 @@ export default function Home() {
                           <div className="col-span-6 text-white/60 line-clamp-2 leading-relaxed">{c.text}</div>
                           <div className="col-span-1 text-center text-white/40">{c.likes.toLocaleString()}</div>
                           <div className="col-span-2 text-right text-white/30 text-xs">
-                            {new Date(c.publishedAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' })}
+                            {new Date(c.publishedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
                           </div>
                         </div>
                         <div className={`sm:hidden px-4 py-3.5 hover:bg-white/3 transition-colors ${c.isReply ? 'bg-white/[0.015] border-l-2 border-l-white/10 pl-5' : ''}`}>
@@ -495,6 +510,83 @@ export default function Home() {
             </div>
           </section>
         )}
+
+        {/* ── AI Feature Showcase ── */}
+        <section className="px-4 sm:px-6 py-16 sm:py-20 border-t border-white/5">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-10 sm:mb-14">
+              <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
+                <TrendingUp size={11} />Powered by Llama 3.3 70B AI
+              </div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight mb-3">Don't just download.<br /><span className="text-purple-400">Understand.</span></h2>
+              <p className="text-white/40 max-w-lg mx-auto text-sm sm:text-base">After fetching comments, our AI reads through all of them and gives you a complete audience intelligence report in seconds.</p>
+            </div>
+
+            {/* AI Mock UI */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 sm:p-8 mb-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[80px] pointer-events-none" />
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-sm">✨</div>
+                <span className="font-bold text-sm">AI Comment Analysis</span>
+                <span className="ml-auto text-xs bg-green-500/15 text-green-400 border border-green-500/20 px-2.5 py-1 rounded-full font-medium">Premium</span>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+                {/* Sentiment */}
+                <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-4">
+                  <p className="text-xs text-white/40 uppercase tracking-wider mb-3 font-semibold">Sentiment Score</p>
+                  <div className="flex items-end gap-3 mb-3">
+                    <span className="text-4xl font-black text-green-400">8.4</span>
+                    <span className="text-white/40 text-sm mb-1">/10 · Very Positive</span>
+                  </div>
+                  <div className="space-y-2">
+                    {[{ label: 'Positive', pct: 76, color: 'bg-green-500' }, { label: 'Neutral', pct: 18, color: 'bg-yellow-500' }, { label: 'Negative', pct: 6, color: 'bg-red-500' }].map(s => (
+                      <div key={s.label} className="flex items-center gap-2 text-xs">
+                        <span className="w-14 text-white/40">{s.label}</span>
+                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className={`h-full ${s.color} rounded-full`} style={{ width: `${s.pct}%` }} />
+                        </div>
+                        <span className="text-white/40 w-7 text-right">{s.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Themes + Questions */}
+                <div className="space-y-4">
+                  <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-4">
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2.5 font-semibold">Top Themes</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Tutorial quality', 'Beginner friendly', 'More examples needed', 'Great pacing'].map(t => (
+                        <span key={t} className="text-xs bg-purple-500/15 text-purple-300 border border-purple-500/20 px-2 py-1 rounded-full">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-4">
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2.5 font-semibold">Audience Questions</p>
+                    <ul className="space-y-1.5">
+                      {['Can you cover advanced topics?', 'What tool do you use for this?'].map(q => (
+                        <li key={q} className="text-xs text-white/60 flex items-start gap-1.5"><span className="text-purple-400 shrink-0 mt-0.5">?</span>{q}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Video Ideas — full width */}
+                <div className="sm:col-span-2 bg-gradient-to-r from-purple-500/8 to-pink-500/8 border border-purple-500/15 rounded-2xl p-4">
+                  <p className="text-xs text-white/40 uppercase tracking-wider mb-2.5 font-semibold">💡 Next Video Ideas from your Audience</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Advanced deep-dive part 2', 'Tool comparison video', 'Live Q&A session', 'Beginner crash course'].map(idea => (
+                      <span key={idea} className="text-xs bg-white/5 border border-white/10 text-white/70 px-3 py-1.5 rounded-full">{idea}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-center text-white/30 text-xs">☝️ This is a live preview of what you get after fetching comments on any YouTube video</p>
+          </div>
+        </section>
 
         {/* ── Features ── */}
         <section id="features" className="px-4 sm:px-6 py-16 sm:py-20 md:py-24 border-t border-white/5">
